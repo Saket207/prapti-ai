@@ -1,0 +1,114 @@
+[
+  {
+    "id": "block_1_heritage",
+    "name": "Block 1 — Heritage Block (Admin & Placements)",
+    "zone": "administration",
+    "sector": "North / Entrance",
+    "departments": ["Admissions", "Accounts", "Placement Cell", "Principal Office"],
+    "description": "Central administration building, reception, and placement center."
+  },
+  {
+    "id": "block_2_library",
+    "name": "Block 2 — Central Library & Information Centre",
+    "zone": "library",
+    "sector": "North / Entrance",
+    "departments": ["UG Circulation", "Digital Library", "Reference Section", "PG Library"],
+    "description": "5-story central library facility with group reading zones and digital center."
+  },
+  {
+    "id": "blocks_3_4_aero_auto",
+    "name": "Blocks 3 & 4 — Automobile & Aeronautical Engineering",
+    "zone": "academic_core",
+    "sector": "Eastern / Southern Slopes",
+    "departments": ["Aeronautical Engineering", "Automobile Engineering"],
+    "description": "Aircraft hangar bay, flight simulation labs, and wind-tunnel facilities."
+  },
+  {
+    "id": "blocks_5_6_mechanical",
+    "name": "Blocks 5 & 6 — Mechanical Engineering & Heavy Workshops",
+    "zone": "academic_core",
+    "sector": "Eastern / Southern Slopes",
+    "departments": ["Mechanical Engineering", "Machine Shop", "Foundry & Forging"],
+    "description": "Heavy machinery labs, lathe bays, IC engine labs, and mechatronics."
+  },
+  {
+    "id": "block_7_eee",
+    "name": "Block 7 — Electrical & Electronics Engineering (EEE)",
+    "zone": "academic_circuit",
+    "sector": "Western Sector",
+    "departments": ["EEE", "High Voltage Lab", "IoT Workshop", "Lecture Theaters"],
+    "description": "Multi-story EEE building with specialized electronics and power labs."
+  },
+  {
+    "id": "blocks_8_9_10_biotech_chem",
+    "name": "Blocks 8, 9 & 10 — Biotechnology & Chemical Sciences",
+    "zone": "academic_sciences",
+    "sector": "Eastern Sector",
+    "departments": ["Biotechnology", "Chemistry", "Microbiology"],
+    "description": "Bioprocess labs, plant tissue culture, and instrumentation hubs."
+  },
+  {
+    "id": "blocks_13_14_architecture",
+    "name": "Blocks 13 & 14 — Architecture & Design Studios",
+    "zone": "academic_design",
+    "sector": "Central / Slopes",
+    "departments": ["Architecture", "Applied Sciences", "Design Studios"],
+    "description": "Open drafting studios, model workshops, and thesis exhibition galleries."
+  },
+  {
+    "id": "blocks_16_17_mgmt_telecom",
+    "name": "Blocks 16 & 17 — Management Studies (MBA, MCA) & Telecom",
+    "zone": "academic_pg",
+    "sector": "Western Sector",
+    "departments": ["MBA", "MCA", "Electronics & Telecommunication"],
+    "description": "Post-graduate lecture theaters, case study rooms, and microwave labs."
+  },
+  {
+    "id": "block_19_computing_hub",
+    "name": "Block 19 & New Engineering Block — Computing Hub (CSE / ISE / AI / IoT)",
+    "zone": "academic_it",
+    "sector": "Western Sector",
+    "departments": ["CSE", "ISE", "AI & ML", "Cybersecurity", "Innovation Courtyard"],
+    "description": "Primary computing clusters, software labs, AI GPU nodes, and startup hub."
+  },
+  {
+    "id": "pc_sagar_auditorium",
+    "name": "Premachandra Sagar Centre for Performing Arts (Auditorium)",
+    "zone": "events",
+    "sector": "Central Sector",
+    "departments": ["Cultural Hub", "Central Amphitheatre"],
+    "description": "800-seat modern indoor auditorium adjacent to the central lawns."
+  },
+  {
+    "id": "central_dining_canteen",
+    "name": "Central Dining Hall & Campus Canteens",
+    "zone": "dining",
+    "sector": "Central Sector",
+    "departments": ["MGVP Canteen", "Food Court", "Student Refreshments"],
+    "description": "Multi-cuisine student dining hall and perimeter cafeteria outlets."
+  },
+  {
+    "id": "indoor_gym_sports",
+    "name": "Gymnasium & Indoor Sports Arena",
+    "zone": "sports",
+    "sector": "Recreational Grounds",
+    "departments": ["Multi-Gym", "Table Tennis", "Indoor Sports"],
+    "description": "Fitness training center and indoor game facilities."
+  },
+  {
+    "id": "campus_gates_security",
+    "name": "Main Entrance Gates (Gate 1 & Gate 2) & Security Desks",
+    "zone": "security",
+    "sector": "Perimeter",
+    "departments": ["Campus Security", "Lost & Found Front Desk"],
+    "description": "Main perimeter checkpoints and student security stations."
+  },
+  {
+    "id": "parking_bays",
+    "name": "Two-Wheeler & Four-Wheeler Parking Zones",
+    "zone": "parking",
+    "sector": "Perimeter Slopes",
+    "departments": ["Student Parking", "Faculty Parking"],
+    "description": "Dedicated parking lots across upper and lower campus tiers."
+  }
+]
