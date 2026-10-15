@@ -1,0 +1,160 @@
+from datetime import datetime
+import logging
+from typing import Dict, Any, List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from app.auth import get_current_user
+from app.db import get_supabase_admin
+from app.models import (
+    ItemResponse,
+    MatchesListResponse,
+    MatchResponse,
+    MatchBreakdown,
+)
+from app.routes.items import (
+    compute_location_score,
+    compute_time_score,
+    compute_text_score,
+)
+
+logger = logging.getLogger("prapti-matches")
+router = APIRouter()
+
+
+# =====================================================================
+# GET /matches/{lost_id} — Retrieve top 3 matches for a lost item
+# =====================================================================
+@router.get(
+    "/{lost_id}",
+    response_model=MatchesListResponse,
+    summary="Get top matches for a lost item",
+    description="Compares the specified lost item against all open found items and returns the top 3 matches above the threshold.",
+)
+async def get_matches_for_lost_item(
+    lost_id: UUID,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> MatchesListResponse:
+    supabase = get_supabase_admin()
+    str_lost_id = str(lost_id)
+
+    # 1. Fetch the lost item
+    try:
+        lost_res = (
+            supabase.table("items")
+            .select(
+                "id, reporter_id, kind, status, description, category, color, location_id, event_time, blurred_image_path, created_at"
+            )
+            .eq("id", str_lost_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as exc:
+        logger.exception(f"Database error fetching lost item {str_lost_id}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to query item for matching.",
+        )
+
+    lost_data = lost_res.data
+    if not lost_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lost item not found.",
+        )
+
+    if lost_data["kind"] != "lost":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Specified item is not a lost report. Matches can only be queried for lost items.",
+        )
+
+    # 2. Authorization: Only the owner who reported the lost item or an admin can view matches
+    user_id = current_user["id"]
+    is_owner = lost_data["reporter_id"] == user_id
+    is_admin = current_user.get("role") == "admin"
+    if not (is_owner or is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view matches for this item.",
+        )
+
+    # 3. Parse lost item parameters
+    lost_event_time = datetime.fromisoformat(lost_data["event_time"].replace("Z", "+00:00"))
+    lost_location = lost_data["location_id"]
+    lost_desc = lost_data.get("description")
+
+    # 4. Fetch open found items to compare against
+    try:
+        candidates_res = (
+            supabase.table("items")
+            .select(
+                "id, kind, status, description, category, color, location_id, event_time, blurred_image_path, created_at"
+            )
+            .eq("kind", "found")
+            .in_("status", ["found", "matched"])
+            .order("created_at", desc=True)
+            .limit(50)
+            .execute()
+        )
+        candidates = candidates_res.data or []
+    except Exception as exc:
+        logger.exception(f"Database error fetching candidate items: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to query candidate items.",
+        )
+
+    # 5. Score candidates across 4 dimensions
+    scored_matches: List[MatchResponse] = []
+    for cand in candidates:
+        cand_time = datetime.fromisoformat(cand["event_time"].replace("Z", "+00:00"))
+
+        score_loc = compute_location_score(lost_location, cand["location_id"])
+        score_time = compute_time_score(lost_event_time, cand_time)
+        score_text = compute_text_score(lost_desc, cand.get("description"))
+        score_visual = 0.5  # Neutral baseline until CLIP vector similarity is active
+
+        # Weighted formula: visual (35%) + text (35%) + location (20%) + time (10%)
+        composite_score = round(
+            (score_visual * 0.35) + (score_text * 0.35) + (score_loc * 0.20) + (score_time * 0.10),
+            2,
+        )
+
+        cand_blurred_url = None
+        if cand.get("blurred_image_path"):
+            cand_blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{cand['blurred_image_path']}"
+
+        cand_item = ItemResponse(
+            id=cand["id"],
+            kind=cand["kind"],
+            status=cand["status"],
+            description=cand.get("description"),
+            category=cand.get("category"),
+            color=cand.get("color"),
+            location_id=cand["location_id"],
+            event_time=cand_time,
+            blurred_image_url=cand_blurred_url,
+            created_at=cand["created_at"],
+        )
+
+        breakdown = MatchBreakdown(
+            visual=score_visual,
+            text=score_text,
+            location=score_loc,
+            time=score_time,
+        )
+
+        scored_matches.append(
+            MatchResponse(
+                found_item=cand_item,
+                score=composite_score,
+                breakdown=breakdown,
+            )
+        )
+
+    # 6. Sort descending and filter top 3 (threshold >= 0.40)
+    scored_matches.sort(key=lambda m: m.score, reverse=True)
+    top_matches = [m for m in scored_matches if m.score >= 0.40][:3]
+
+    return MatchesListResponse(matches=top_matches)
