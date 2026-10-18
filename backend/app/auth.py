@@ -33,13 +33,13 @@ async def get_current_user(
     if settings.DEBUG:
         if token == "dev-test-student-token":
             return {
-                "id": "00000000-0000-0000-0000-000000000001",
+                "id": "fe8af11b-4910-4509-9a12-2f268b8b60a5",
                 "email": "student.test@dsce.edu.in",
                 "role": "student",
             }
         elif token == "dev-test-admin-token":
             return {
-                "id": "00000000-0000-0000-0000-000000000002",
+                "id": "e10a258e-fbef-45e3-b2e8-b2b3e9d46694",
                 "email": "admin.security@dsce.edu.in",
                 "role": "admin",
             }
