@@ -163,10 +163,11 @@ async def root():
 from app.routes.items import router as items_router
 from app.routes.matches import router as matches_router
 from app.routes.claims import router as claims_router, handover_router
+from app.routes.admin import router as admin_router
 
 app.include_router(items_router, prefix="/items", tags=["Items"])
 app.include_router(matches_router, prefix="/matches", tags=["Matches"])
 app.include_router(claims_router, prefix="/claims", tags=["Claims"])
 app.include_router(handover_router, tags=["Handover"])
-# Future modules will be mounted here:
-# app.include_router(admin_router, prefix="/admin", tags=["Admin"])
+app.include_router(admin_router, prefix="/admin", tags=["Admin"])
+

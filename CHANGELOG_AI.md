@@ -235,5 +235,26 @@ All entries record approved modifications, rationale, tests run, and outcomes.
   - FastAPI TestClient app health check.
 - **Test Results**: All tests PASSED.
 - **Outstanding Issues**:
-  - Admin endpoints (`/admin/*`) and notifications (`notifications/notify.py`).
+  - Notifications module (`notifications/notify.py`).
+
+---
+
+## [2026-10-19] — Task 13: Admin Module & Role-Based Authorization
+- **Authorized by**: User approval ("ok" for Option A Admin Module).
+- **Files Modified / Created**:
+  - `backend/app/auth.py`: Implemented `require_admin` dependency enforcing HTTP 403 Forbidden for non-admin accounts; added `dev-test-admin-token` bypass for local testing.
+  - `backend/app/routes/admin.py`: Implemented 4 core administrative endpoints:
+    - `GET /admin/items`: Paginated item query supporting filters by status, location_id, and kind.
+    - `POST /admin/items/{id}/status`: Manual status override with audit logging to `status_history`.
+    - `GET /admin/original/{id}`: Generates temporary 60-second signed URL for unblurred photos from private `originals` storage bucket.
+    - `GET /admin/stats`: Aggregates hotspot analytics, item category frequencies, status breakdowns, and return rate calculation.
+  - `backend/app/main.py`: Mounted the `/admin` router under prefix `/admin` with tag `"Admin"`.
+  - `backend/tests/test_admin.py`: Comprehensive test suite verifying unauthenticated 401 challenges, student 403 authorization blocks, and OpenAPI documentation registration.
+- **Reason**: Fulfill administrative contract requirements from `docs/api-contract.md` allowing campus security to manage disputed items and review loss hotspots.
+- **Tests Executed**:
+  - `py_compile` syntax validation across `auth.py`, `admin.py`, and `main.py`.
+  - Automated test execution with `python backend/tests/test_admin.py` validating 401, 403, and OpenAPI schema routes.
+- **Test Results**: All tests PASSED.
+- **Outstanding Issues**:
+  - Notifications module (`notifications/notify.py`) and Next.js frontend (`frontend/`).
 

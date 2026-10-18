@@ -49,10 +49,9 @@ The project architecture, database schemas, and API contracts are fully designed
 ---
 
 ## 4. Pending / Next Recommended Tasks
-1. **Commit Working Tree**: Commit completed AI Multimodal Embeddings and test suite to branch `feature/saket`.
-2. **Admin Endpoints**: Implement `/admin/*` routes (`GET /admin/items`, `POST /admin/items/{id}/status`, `GET /admin/original/{id}`, `GET /admin/stats`).
-3. **Notification Engine**: Implement `notifications/notify.py`, `telegram_bot.py`, `email_sender.py`.
-4. **Frontend Web App**: Setup Next.js frontend to consume the API.
+1. **Notification Engine**: Implement `notifications/notify.py`, `telegram_bot.py`, `email_sender.py`.
+2. **Frontend Web App**: Setup Next.js frontend (`frontend/`) to consume the complete API.
+3. **Live Supabase Sync**: Connect live Supabase project to verify end-to-end table triggers and storage buckets.
 
 
 ---

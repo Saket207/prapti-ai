@@ -21,10 +21,12 @@ Prapti-AI (*Prapti* = Sanskrit for "getting back, obtaining") is an AI-powered l
 | **Backend Core** | Implemented & Verified | `main.py`, `config.py`, `db.py`, `models.py` operational with CORS, error handlers, and `/health`. |
 | **AI/ML Modules** | Implemented & Verified | `privacy_blur.py`, `clip.py` (512-dim multimodal embeddings), `tagging.py` (zero-shot classification), and `scoring.py` (composite ranking engine) fully verified. |
 | **Student Routes** | Implemented & Verified | All Person 1 student endpoints (`items`, `matches`, `claims`, `handover`) fully implemented & verified. |
-| **Auth & Security** | Implemented & Verified | `backend/app/auth.py` verifying Supabase JWTs with HTTP 401 challenge. |
+| **Admin Module** | Implemented & Verified | All 4 admin endpoints (`items`, `items/{id}/status`, `original/{id}`, `stats`) and `require_admin` guard implemented & verified. |
+| **Auth & Security** | Implemented & Verified | `backend/app/auth.py` verifying Supabase JWTs with HTTP 401 challenge and admin role enforcement (HTTP 403). |
 | **Campus Data** | Implemented & Verified | `shared/campus_locations.json` populated with 14 authentic DSCE campus locations and zones. |
 | **Notifications** | Pending Implementation | `notifications/notify.py`, `telegram_bot.py`, `email_sender.py` are skeleton files. |
 | **Frontend Web App** | Pending Implementation | Next.js application directory not yet initialized. |
+
 
 ---
 
