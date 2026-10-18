@@ -58,7 +58,7 @@ async def get_matches_for_lost_item(
             detail="Failed to query item for matching.",
         )
 
-    lost_data = lost_res.data
+    lost_data = lost_res.data if lost_res else None
     if not lost_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

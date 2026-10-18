@@ -60,7 +60,7 @@ async def create_claim(
             detail="Failed to verify lost item ownership.",
         )
 
-    lost_item = lost_res.data
+    lost_item = lost_res.data if lost_res else None
     if not lost_item or lost_item["reporter_id"] != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -75,7 +75,7 @@ async def create_claim(
         .maybe_single()
         .execute()
     )
-    found_item = found_res.data
+    found_item = found_res.data if found_res else None
     if not found_item or found_item["kind"] != "found":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -96,7 +96,7 @@ async def create_claim(
         .maybe_single()
         .execute()
     )
-    secret_data = secret_res.data
+    secret_data = secret_res.data if secret_res else None
     if not secret_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -112,7 +112,7 @@ async def create_claim(
         .maybe_single()
         .execute()
     )
-    existing_claim = existing_claim_res.data
+    existing_claim = existing_claim_res.data if existing_claim_res else None
 
     if existing_claim:
         claim_id = existing_claim["id"]
@@ -194,7 +194,7 @@ async def verify_claim_answer(
             detail="Failed to query claim record.",
         )
 
-    claim_data = claim_res.data
+    claim_data = claim_res.data if claim_res else None
     if not claim_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -233,7 +233,7 @@ async def verify_claim_answer(
         .maybe_single()
         .execute()
     )
-    secret_data = secret_res.data
+    secret_data = secret_res.data if secret_res else None
     if not secret_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -370,7 +370,7 @@ async def confirm_handover(
             detail="Failed to verify handover token.",
         )
 
-    claim_data = claim_res.data
+    claim_data = claim_res.data if claim_res else None
     if not claim_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -392,7 +392,7 @@ async def confirm_handover(
         .maybe_single()
         .execute()
     )
-    found_item = found_res.data
+    found_item = found_res.data if found_res else None
     is_finder = found_item and found_item["reporter_id"] == user_id
     is_admin = current_user.get("role") == "admin"
 

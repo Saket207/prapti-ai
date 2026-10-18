@@ -513,7 +513,7 @@ async def get_item_by_id(
             .execute()
         )
         
-        item_data = item_res.data
+        item_data = item_res.data if item_res else None
         if not item_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
