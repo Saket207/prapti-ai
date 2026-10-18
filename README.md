@@ -42,4 +42,62 @@ Dayananda Sagar College of Engineering, Bengaluru
 <!-- Add team member names and GitHub links here -->
 
 ## Getting Started
-<!-- Fill in setup steps as each part is completed -->
+
+### Prerequisites
+- **Python**: 3.10+ (tested on Python 3.13)
+- **Node.js**: v18+ (tested on Node v22)
+- **Git**
+
+---
+
+### 1. Backend Setup & Run (FastAPI + AI Engine)
+
+Open a terminal and navigate to the `backend/` directory:
+
+```bash
+# Navigate to backend
+cd backend
+
+# Install Python dependencies
+pip install -r requirements.txt
+# or install core packages directly:
+pip install fastapi uvicorn supabase python-multipart sentence-transformers torch torchvision opencv-python Pillow numpy pydantic-settings python-dotenv requests
+
+# Start the FastAPI backend with auto-reload
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+- **Health Check**: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+- **Interactive Swagger Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+---
+
+### 2. Frontend Setup & Run (Next.js 16 + Tailwind CSS)
+
+Open a second terminal and navigate to the `frontend/` directory:
+
+```bash
+# Navigate to frontend
+cd frontend
+
+# Install Node dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+- **Web Application**: [http://localhost:3000](http://localhost:3000)
+- **Found Item Portal**: [http://localhost:3000/found](http://localhost:3000/found)
+- **Lost Item Portal**: [http://localhost:3000/lost](http://localhost:3000/lost)
+- **My Items Management**: [http://localhost:3000/items](http://localhost:3000/items)
+- **Admin Dashboard**: [http://localhost:3000/admin](http://localhost:3000/admin)
+
+---
+
+### Quick Dev Reference
+
+| Component | Working Directory | Command | URL |
+| :--- | :--- | :--- | :--- |
+| **Backend** | `Prapti-ai/backend` | `python -m uvicorn app.main:app --port 8000 --reload` | `http://127.0.0.1:8000` |
+| **Frontend** | `Prapti-ai/frontend` | `npm run dev` | `http://localhost:3000` |
