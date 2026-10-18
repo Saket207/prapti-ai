@@ -127,9 +127,12 @@ async def get_matches_for_lost_item(
             score_visual, score_text, score_loc, score_time
         )
 
-        cand_blurred_url = None
-        if cand.get("blurred_image_path"):
-            cand_blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{cand['blurred_image_path']}"
+        base_url = str(supabase.supabase_url).rstrip("/")
+        cand_blurred_url = (
+            f"{base_url}/storage/v1/object/public/blurred/{cand['blurred_image_path']}"
+            if cand.get("blurred_image_path")
+            else None
+        )
 
         cand_item = ItemResponse(
             id=cand["id"],

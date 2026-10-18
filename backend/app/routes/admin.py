@@ -63,9 +63,12 @@ async def list_all_items_admin(
 
     items: List[ItemResponse] = []
     for r in rows:
-        blurred_url = None
-        if r.get("blurred_image_path"):
-            blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{r['blurred_image_path']}"
+        base_url = str(supabase.supabase_url).rstrip("/")
+        blurred_url = (
+            f"{base_url}/storage/v1/object/public/blurred/{r['blurred_image_path']}"
+            if r.get("blurred_image_path")
+            else None
+        )
 
         event_dt = datetime.fromisoformat(r["event_time"].replace("Z", "+00:00"))
         created_dt = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
@@ -158,9 +161,12 @@ async def update_item_status_admin(
     except Exception as exc:
         logger.warning(f"Notice: Failed to insert status_history log: {exc}")
 
-    blurred_url = None
-    if current_item.get("blurred_image_path"):
-        blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{current_item['blurred_image_path']}"
+    base_url = str(supabase.supabase_url).rstrip("/")
+    blurred_url = (
+        f"{base_url}/storage/v1/object/public/blurred/{current_item['blurred_image_path']}"
+        if current_item.get("blurred_image_path")
+        else None
+    )
 
     event_dt = datetime.fromisoformat(current_item["event_time"].replace("Z", "+00:00"))
     created_dt = datetime.fromisoformat(current_item["created_at"].replace("Z", "+00:00"))

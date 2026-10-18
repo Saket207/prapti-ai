@@ -71,6 +71,16 @@ def validate_location(location_id: str) -> None:
         )
 
 
+def build_blurred_public_url(supabase_url: Any, path: Optional[str]) -> Optional[str]:
+    """
+    Constructs a normalized public URL for blurred images without duplicate slashes.
+    """
+    if not path:
+        return None
+    base = str(supabase_url).rstrip("/")
+    return f"{base}/storage/v1/object/public/blurred/{path}"
+
+
 
 # =====================================================================
 # POST /items/found — Report a found item (multipart form)
@@ -190,7 +200,7 @@ async def report_found_item(
             detail="Failed to save found item. Please try again.",
         )
 
-    blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{blurred_path}"
+    blurred_url = build_blurred_public_url(supabase.supabase_url, blurred_path)
 
     return ItemResponse(
         id=UUID(item_id),
@@ -272,7 +282,7 @@ async def report_lost_item(
                 supabase.storage.from_("blurred").upload(
                     blurred_path, blurred_bytes, {"content-type": "image/jpeg"}
                 )
-                blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{blurred_path}"
+                blurred_url = build_blurred_public_url(supabase.supabase_url, blurred_path)
             except Exception as exc:
                 logger.warning(f"Storage upload notice (lost item): {exc}")
     else:
@@ -373,9 +383,7 @@ async def report_lost_item(
                 score_visual, score_text, score_loc, score_time
             )
 
-            cand_blurred_url = None
-            if cand.get("blurred_image_path"):
-                cand_blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{cand['blurred_image_path']}"
+            cand_blurred_url = build_blurred_public_url(supabase.supabase_url, cand.get("blurred_image_path"))
 
             cand_item = ItemResponse(
                 id=cand["id"],
@@ -453,9 +461,7 @@ async def get_my_items(
         result = []
         for row in items_data:
             # Construct public URL for blurred image if path exists
-            blurred_url = None
-            if row.get("blurred_image_path"):
-                blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{row['blurred_image_path']}"
+            blurred_url = build_blurred_public_url(supabase.supabase_url, row.get("blurred_image_path"))
             
             result.append(
                 ItemResponse(
@@ -536,9 +542,7 @@ async def get_item_by_id(
         )
         
         # Construct public blurred image URL
-        blurred_url = None
-        if item_data.get("blurred_image_path"):
-            blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{item_data['blurred_image_path']}"
+        blurred_url = build_blurred_public_url(supabase.supabase_url, item_data.get("blurred_image_path"))
             
         clean_item = ItemResponse(
             id=item_data["id"],
