@@ -17,12 +17,24 @@ from app.models import (
     MatchBreakdown,
 )
 from app.ml.privacy_blur import redact_image_for_privacy
+from app.ml.clip import (
+    generate_image_embedding,
+    generate_text_embedding,
+    predict_category_and_color,
+)
+from app.ml.scoring import (
+    LOCATIONS_FILE,
+    get_location_metadata,
+    compute_location_score,
+    compute_time_score,
+    compute_text_score,
+    compute_visual_score,
+    compute_composite_score,
+)
 
 logger = logging.getLogger("prapti-items")
 router = APIRouter()
 
-# Load valid campus location IDs from shared/campus_locations.json
-LOCATIONS_FILE = Path(__file__).resolve().parent.parent.parent.parent / "shared" / "campus_locations.json"
 _VALID_LOCATIONS: Optional[set] = None
 
 
@@ -58,64 +70,6 @@ def validate_location(location_id: str) -> None:
             detail=f"Invalid location_id '{location_id}'. Must be a recognized DSCE campus location.",
         )
 
-
-_LOCATION_METADATA: Optional[Dict[str, Dict[str, Any]]] = None
-
-
-def get_location_metadata() -> Dict[str, Dict[str, Any]]:
-    global _LOCATION_METADATA
-    if _LOCATION_METADATA is None:
-        try:
-            if LOCATIONS_FILE.exists():
-                with open(LOCATIONS_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    _LOCATION_METADATA = {item["id"]: item for item in data if "id" in item}
-            else:
-                _LOCATION_METADATA = {}
-        except Exception:
-            _LOCATION_METADATA = {}
-    return _LOCATION_METADATA
-
-
-def compute_location_score(loc1: str, loc2: str) -> float:
-    if loc1 == loc2:
-        return 1.0
-    meta = get_location_metadata()
-    i1 = meta.get(loc1, {})
-    i2 = meta.get(loc2, {})
-    if i1 and i2:
-        if i1.get("sector") and i1.get("sector") == i2.get("sector"):
-            return 0.65
-        if i1.get("zone") and i1.get("zone") == i2.get("zone"):
-            return 0.40
-    return 0.15
-
-
-def compute_time_score(dt1: datetime, dt2: datetime) -> float:
-    hours_diff = abs((dt1 - dt2).total_seconds()) / 3600.0
-    if hours_diff <= 2.0:
-        return 1.0
-    elif hours_diff <= 12.0:
-        return 0.85
-    elif hours_diff <= 24.0:
-        return 0.70
-    elif hours_diff <= 72.0:
-        return 0.50
-    else:
-        return max(0.1, round(1.0 - (hours_diff / 168.0), 2))
-
-
-def compute_text_score(desc1: Optional[str], desc2: Optional[str]) -> float:
-    if not desc1 or not desc2:
-        return 0.5  # neutral baseline
-    w1 = set(desc1.lower().split())
-    w2 = set(desc2.lower().split())
-    if not w1 or not w2:
-        return 0.5
-    intersection = len(w1 & w2)
-    union = len(w1 | w2)
-    jaccard = intersection / max(union, 1)
-    return min(1.0, max(0.2, round(jaccard * 2.5, 2)))
 
 
 # =====================================================================
@@ -181,7 +135,12 @@ async def report_found_item(
 
     supabase = get_supabase_admin()
 
-    # 6. Upload images to Supabase Storage buckets
+    # 6. Generate CLIP multimodal embeddings and predict category & color
+    image_emb = generate_image_embedding(photo_bytes)
+    text_emb = generate_text_embedding(description) if description else None
+    pred_category, pred_color = predict_category_and_color(photo_bytes)
+
+    # 7. Upload images to Supabase Storage buckets
     try:
         supabase.storage.from_("originals").upload(
             path=original_path,
@@ -196,26 +155,28 @@ async def report_found_item(
     except Exception as exc:
         logger.warning(f"Storage upload notice (continuing with DB record): {exc}")
 
-    # 7. Insert item record into items table
+    # 8. Insert item record into items table
     item_payload = {
         "id": item_id,
         "reporter_id": current_user["id"],
         "kind": ItemKind.FOUND.value,
         "status": ItemStatus.FOUND.value,
         "description": description.strip() if description else None,
-        "category": None,
-        "color": None,
+        "category": pred_category,
+        "color": pred_color,
         "location_id": location_id,
         "event_time": event_dt.isoformat(),
         "original_image_path": original_path,
         "blurred_image_path": blurred_path,
+        "image_embedding": image_emb,
+        "text_embedding": text_emb,
         "created_at": now_dt.isoformat(),
     }
 
     try:
         supabase.table("items").insert(item_payload).execute()
 
-        # 8. Insert secret challenge into item_secrets table (backend only)
+        # 9. Insert secret challenge into item_secrets table (backend only)
         secret_payload = {
             "item_id": item_id,
             "question": secret_question.strip(),
@@ -236,13 +197,14 @@ async def report_found_item(
         kind=ItemKind.FOUND,
         status=ItemStatus.FOUND,
         description=item_payload["description"],
-        category=item_payload["category"],
-        color=item_payload["color"],
+        category=pred_category,
+        color=pred_color,
         location_id=location_id,
         event_time=event_dt,
         blurred_image_url=blurred_url,
         created_at=now_dt,
     )
+
 
 
 # =====================================================================
@@ -316,7 +278,7 @@ async def report_lost_item(
     else:
         supabase = get_supabase_admin()
 
-    # 4. Parse event time
+    # 4. Parse event time and generate CLIP embeddings
     now_dt = datetime.now(timezone.utc)
     if event_time:
         try:
@@ -326,6 +288,12 @@ async def report_lost_item(
     else:
         event_dt = now_dt
 
+    lost_image_emb = generate_image_embedding(photo_bytes) if (has_photo and 'photo_bytes' in locals()) else None
+    lost_text_emb = generate_text_embedding(description) if has_description else None
+    pred_category, pred_color = (
+        predict_category_and_color(photo_bytes) if (has_photo and 'photo_bytes' in locals()) else (None, None)
+    )
+
     # 5. Insert lost item into items table
     item_payload = {
         "id": item_id,
@@ -333,12 +301,14 @@ async def report_lost_item(
         "kind": ItemKind.LOST.value,
         "status": ItemStatus.LOST.value,
         "description": description.strip() if description else None,
-        "category": None,
-        "color": None,
+        "category": pred_category,
+        "color": pred_color,
         "location_id": location_id,
         "event_time": event_dt.isoformat(),
         "original_image_path": original_path,
         "blurred_image_path": blurred_path,
+        "image_embedding": lost_image_emb,
+        "text_embedding": lost_text_emb,
         "created_at": now_dt.isoformat(),
     }
 
@@ -369,7 +339,9 @@ async def report_lost_item(
     try:
         candidates_res = (
             supabase.table("items")
-            .select("id, kind, status, description, category, color, location_id, event_time, blurred_image_path, created_at")
+            .select(
+                "id, kind, status, description, category, color, location_id, event_time, blurred_image_path, image_embedding, text_embedding, created_at"
+            )
             .eq("kind", "found")
             .in_("status", ["found", "matched"])
             .order("created_at", desc=True)
@@ -384,13 +356,21 @@ async def report_lost_item(
 
             score_loc = compute_location_score(location_id, cand["location_id"])
             score_time = compute_time_score(event_dt, cand_time)
-            score_text = compute_text_score(item_payload["description"], cand.get("description"))
-            score_visual = 0.5  # Neutral baseline until CLIP vector similarity is active
+            score_text = compute_text_score(
+                item_payload["description"],
+                cand.get("description"),
+                lost_text_emb,
+                cand.get("text_embedding"),
+            )
+            score_visual = compute_visual_score(
+                lost_image_emb,
+                cand.get("image_embedding"),
+                lost_text_emb,
+                cand.get("text_embedding"),
+            )
 
-            # Weighted composite formula: visual (35%) + text (35%) + location (20%) + time (10%)
-            composite_score = round(
-                (score_visual * 0.35) + (score_text * 0.35) + (score_loc * 0.20) + (score_time * 0.10),
-                2,
+            composite_score, breakdown_dict = compute_composite_score(
+                score_visual, score_text, score_loc, score_time
             )
 
             cand_blurred_url = None
@@ -411,10 +391,10 @@ async def report_lost_item(
             )
 
             breakdown = MatchBreakdown(
-                visual=score_visual,
-                text=score_text,
-                location=score_loc,
-                time=score_time,
+                visual=breakdown_dict["visual"],
+                text=breakdown_dict["text"],
+                location=breakdown_dict["location"],
+                time=breakdown_dict["time"],
             )
 
             scored_candidates.append(
@@ -437,6 +417,7 @@ async def report_lost_item(
         item=created_item,
         matches=matches,
     )
+
 
 
 # =====================================================================

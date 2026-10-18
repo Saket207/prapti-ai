@@ -12,10 +12,12 @@ from app.models import (
     MatchResponse,
     MatchBreakdown,
 )
-from app.routes.items import (
+from app.ml.scoring import (
     compute_location_score,
     compute_time_score,
     compute_text_score,
+    compute_visual_score,
+    compute_composite_score,
 )
 
 logger = logging.getLogger("prapti-matches")
@@ -43,7 +45,7 @@ async def get_matches_for_lost_item(
         lost_res = (
             supabase.table("items")
             .select(
-                "id, reporter_id, kind, status, description, category, color, location_id, event_time, blurred_image_path, created_at"
+                "id, reporter_id, kind, status, description, category, color, location_id, event_time, blurred_image_path, image_embedding, text_embedding, created_at"
             )
             .eq("id", str_lost_id)
             .maybe_single()
@@ -83,13 +85,15 @@ async def get_matches_for_lost_item(
     lost_event_time = datetime.fromisoformat(lost_data["event_time"].replace("Z", "+00:00"))
     lost_location = lost_data["location_id"]
     lost_desc = lost_data.get("description")
+    lost_img_emb = lost_data.get("image_embedding")
+    lost_text_emb = lost_data.get("text_embedding")
 
     # 4. Fetch open found items to compare against
     try:
         candidates_res = (
             supabase.table("items")
             .select(
-                "id, kind, status, description, category, color, location_id, event_time, blurred_image_path, created_at"
+                "id, kind, status, description, category, color, location_id, event_time, blurred_image_path, image_embedding, text_embedding, created_at"
             )
             .eq("kind", "found")
             .in_("status", ["found", "matched"])
@@ -112,13 +116,15 @@ async def get_matches_for_lost_item(
 
         score_loc = compute_location_score(lost_location, cand["location_id"])
         score_time = compute_time_score(lost_event_time, cand_time)
-        score_text = compute_text_score(lost_desc, cand.get("description"))
-        score_visual = 0.5  # Neutral baseline until CLIP vector similarity is active
+        score_text = compute_text_score(
+            lost_desc, cand.get("description"), lost_text_emb, cand.get("text_embedding")
+        )
+        score_visual = compute_visual_score(
+            lost_img_emb, cand.get("image_embedding"), lost_text_emb, cand.get("text_embedding")
+        )
 
-        # Weighted formula: visual (35%) + text (35%) + location (20%) + time (10%)
-        composite_score = round(
-            (score_visual * 0.35) + (score_text * 0.35) + (score_loc * 0.20) + (score_time * 0.10),
-            2,
+        composite_score, breakdown_dict = compute_composite_score(
+            score_visual, score_text, score_loc, score_time
         )
 
         cand_blurred_url = None
@@ -139,10 +145,10 @@ async def get_matches_for_lost_item(
         )
 
         breakdown = MatchBreakdown(
-            visual=score_visual,
-            text=score_text,
-            location=score_loc,
-            time=score_time,
+            visual=breakdown_dict["visual"],
+            text=breakdown_dict["text"],
+            location=breakdown_dict["location"],
+            time=breakdown_dict["time"],
         )
 
         scored_matches.append(
@@ -158,3 +164,4 @@ async def get_matches_for_lost_item(
     top_matches = [m for m in scored_matches if m.score >= 0.40][:3]
 
     return MatchesListResponse(matches=top_matches)
+

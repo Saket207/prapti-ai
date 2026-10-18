@@ -215,3 +215,25 @@ All entries record approved modifications, rationale, tests run, and outcomes.
 - **Authorized by**: User approval.
 - **Action**: Pushed branch `feature/saket` (commit `8f0c629`) to `origin` (`https://github.com/Saket207/prapti-ai.git`).
 - **Result**: Successfully updated remote repository. All Person 1 core student workflows, schemas, and tracking documents are safely backed up to GitHub.
+
+---
+
+## [2026-10-18] — Task 12: AI Multimodal CLIP Embeddings & Scoring Engine
+- **Authorized by**: User request ("(Recommended) AI Multimodal Embeddings & Scoring").
+- **Files Modified / Created**:
+  - `backend/app/ml/clip.py`: Implemented singleton CLIP embedder (`clip-ViT-B-32`) for 512-dimensional normalized image and text embeddings, cosine similarity calculation, and zero-shot category and color classification.
+  - `backend/app/ml/tagging.py`: Zero-shot campus category & color prediction module.
+  - `backend/app/ml/scoring.py`: Modular multimodal candidate scoring engine combining visual similarity (35%), text semantic similarity (35%), campus spatial proximity (20%), and event temporal proximity (10%).
+  - `backend/app/routes/items.py`: Updated `POST /items/found` to auto-tag category/color and persist 512-dim vectors; updated `POST /items/lost` to generate embeddings and score candidates using the multimodal engine.
+  - `backend/app/routes/matches.py`: Updated `GET /matches/{lost_id}` to compute multi-factor scores with vector embeddings.
+  - `backend/requirements.txt`: Added ML dependencies (`torch`, `transformers`, `sentence-transformers`, `Pillow`, `numpy`, `opencv-python-headless`).
+  - `backend/tests/test_ml_and_matching.py`: Full test suite covering CLIP embeddings, zero-shot tagging, spatial/temporal proximity, and composite scoring.
+- **Reason**: Enable automated multimodal search and matching for lost-and-found items with pgvector 512-dim cosine operations.
+- **Tests Executed**:
+  - `py_compile` syntax validation across all files.
+  - `python backend/tests/test_ml_and_matching.py` validating embedding dimensions (512), zero-shot tagging, spatial scoring, time scoring, cross-modal visual scoring, and composite weight formulation.
+  - FastAPI TestClient app health check.
+- **Test Results**: All tests PASSED.
+- **Outstanding Issues**:
+  - Admin endpoints (`/admin/*`) and notifications (`notifications/notify.py`).
+

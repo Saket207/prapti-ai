@@ -32,6 +32,12 @@ The project architecture, database schemas, and API contracts are fully designed
   - `POST /handover/confirm` (finder/admin QR token confirmation, status transition to `returned`).
   - `GET /claims/mine` (active claims).
 
+- Full AI Multimodal Suite Implemented & Verified:
+  - `backend/app/ml/clip.py`: Singleton CLIP `clip-ViT-B-32` embedder generating 512-dim vectors for both images and text.
+  - `backend/app/ml/tagging.py`: Zero-shot campus category & color prediction.
+  - `backend/app/ml/scoring.py`: 4-factor scoring engine (visual 35%, text 35%, location 20%, time 10%).
+  - Integrated into `POST /items/found`, `POST /items/lost`, and `GET /matches/{lost_id}`.
+
 ---
 
 ## 3. Important Implementation Decisions & Invariants
@@ -43,11 +49,11 @@ The project architecture, database schemas, and API contracts are fully designed
 ---
 
 ## 4. Pending / Next Recommended Tasks
-1. **Commit Working Tree**: Commit completed student backend suite and tracking files to branch `feature/saket`.
-2. **AI Multimodal Embeddings (`backend/app/ml/clip.py`)**: Connect CLIP model to generate 512-dim vectors on `items` for vector cosine search.
-3. **Teammate Handoff**:
-   - Person 2 (Frontend): Ready to consume all student endpoints against `http://localhost:8000`.
-   - Person 3: Implement `/admin/*` routes and notification engine (`notifications/notify.py`).
+1. **Commit Working Tree**: Commit completed AI Multimodal Embeddings and test suite to branch `feature/saket`.
+2. **Admin Endpoints**: Implement `/admin/*` routes (`GET /admin/items`, `POST /admin/items/{id}/status`, `GET /admin/original/{id}`, `GET /admin/stats`).
+3. **Notification Engine**: Implement `notifications/notify.py`, `telegram_bot.py`, `email_sender.py`.
+4. **Frontend Web App**: Setup Next.js frontend to consume the API.
+
 
 ---
 

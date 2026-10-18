@@ -19,7 +19,7 @@ Prapti-AI (*Prapti* = Sanskrit for "getting back, obtaining") is an AI-powered l
 | **Security & RLS** | Specification Complete | `supabase/rls.sql` revokes direct mutations from frontend; enforces backend service-role operations for integrity. |
 | **API Contract** | Specification Complete | `docs/api-contract.md` specifies all student, admin, and notification endpoints. |
 | **Backend Core** | Implemented & Verified | `main.py`, `config.py`, `db.py`, `models.py` operational with CORS, error handlers, and `/health`. |
-| **AI/ML Modules** | In Progress | `privacy_blur.py` (lighting-adaptive face/ID blur) verified; `clip.py` and `scoring.py` pending. |
+| **AI/ML Modules** | Implemented & Verified | `privacy_blur.py`, `clip.py` (512-dim multimodal embeddings), `tagging.py` (zero-shot classification), and `scoring.py` (composite ranking engine) fully verified. |
 | **Student Routes** | Implemented & Verified | All Person 1 student endpoints (`items`, `matches`, `claims`, `handover`) fully implemented & verified. |
 | **Auth & Security** | Implemented & Verified | `backend/app/auth.py` verifying Supabase JWTs with HTTP 401 challenge. |
 | **Campus Data** | Implemented & Verified | `shared/campus_locations.json` populated with 14 authentic DSCE campus locations and zones. |
