@@ -105,6 +105,17 @@ def extract_content_words(text: Optional[str]) -> set:
     return {w for w in words if w not in STOP_WORDS and len(w) > 1}
 
 
+COMPATIBLE_CATEGORIES = {
+    "stationery": {"calculator", "notebook"},
+    "calculator": {"stationery", "notebook"},
+    "notebook": {"stationery", "calculator"},
+    "electronics": {"charger", "phone", "earphones"},
+    "charger": {"electronics", "phone"},
+    "bag": {"wallet"},
+    "wallet": {"bag"},
+}
+
+
 def compute_text_score(
     desc1: Optional[str],
     desc2: Optional[str],
@@ -131,19 +142,12 @@ def compute_text_score(
         from app.ml.clip import predict_category_from_text
         c2 = predict_category_from_text(desc2)
 
-    # 2. Hard category incompatibility check (e.g., earphones vs stationery)
-    if c1 and c2:
-        s1 = str(c1).strip().lower()
-        s2 = str(c2).strip().lower()
-        if s1 != s2:
-            return 0.02
-
-    # 3. Extract substantive content keywords (excluding stop/filler words)
+    # 2. Extract substantive content keywords (excluding stop/filler words)
     kw1 = extract_content_words(desc1)
     kw2 = extract_content_words(desc2)
     overlap = kw1 & kw2
 
-    # Substring / stem matching (e.g. "earbud" in "earbuds", "keys" in "keychain")
+    # Substring / stem matching (e.g. "earbud" in "earbuds", "keys" in "keychain", "sleeve" in "sleeves")
     has_stem_match = False
     for w1 in kw1:
         for w2 in kw2:
@@ -153,7 +157,19 @@ def compute_text_score(
         if has_stem_match:
             break
 
-    # 4. If same category or both categories matched:
+    # 3. Category compatibility check
+    if c1 and c2:
+        s1 = str(c1).strip().lower()
+        s2 = str(c2).strip().lower()
+        if s1 != s2:
+            is_compatible = s2 in COMPATIBLE_CATEGORIES.get(s1, set())
+            if not is_compatible:
+                return 0.02
+            # If compatible categories, require keyword or stem overlap
+            if not overlap and not has_stem_match:
+                return 0.10
+
+    # 4. If same category or compatible category with overlap:
     if c1 and c2 and str(c1).strip().lower() == str(c2).strip().lower():
         if overlap:
             ratio = len(overlap) / max(min(len(kw1), len(kw2)), 1)
@@ -161,9 +177,10 @@ def compute_text_score(
         elif has_stem_match:
             return 0.80
         else:
-            return 0.55
+            # Same category but completely different object/brand/color (e.g. boAt vs Apple, Honda key vs Room key)
+            return 0.20
 
-    # 5. Fallback if categories are unknown:
+    # 5. Fallback if categories are unknown or compatible:
     if overlap:
         ratio = len(overlap) / max(min(len(kw1), len(kw2)), 1)
         return round(min(1.00, 0.50 + 0.50 * ratio), 2)
