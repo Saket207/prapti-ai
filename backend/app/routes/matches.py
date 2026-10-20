@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.auth import get_current_user
-from app.db import get_supabase_admin
+from app.db import get_supabase_admin, build_blurred_public_url
 from app.models import (
     ItemResponse,
     MatchesListResponse,
@@ -144,12 +144,7 @@ async def get_matches_for_lost_item(
             has_one_visual=has_one_visual,
         )
 
-        base_url = str(supabase.supabase_url).rstrip("/")
-        cand_blurred_url = (
-            f"{base_url}/storage/v1/object/public/blurred/{cand['blurred_image_path']}"
-            if cand.get("blurred_image_path")
-            else None
-        )
+        cand_blurred_url = build_blurred_public_url(supabase.supabase_url, cand.get("blurred_image_path"))
 
         cand_item = ItemResponse(
             id=cand["id"],

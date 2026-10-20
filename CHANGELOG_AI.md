@@ -304,4 +304,29 @@ All entries record approved modifications, rationale, tests run, and outcomes.
 - **Outstanding Issues**:
   - Campus ground-truth dataset curation (`data/ground_truth.csv`, `data/seed_items.json`).
 
+---
+
+## [2026-10-21] — Task 16: Codebase Audit, Dead Asset Removal & Dependency Optimization
+- **Authorized by**: User approval ("0k do it").
+- **Files Removed**:
+  - `notifications/telegram_bot.py`: Removed unused 0-byte skeleton file (Telegram superseded by Brevo).
+  - `notifications/requirements.txt`: Removed redundant 0-byte file (consolidated into `backend/requirements.txt`).
+  - `backend/README.md`: Removed redundant 0-byte placeholder (fully covered by root `README.md`).
+  - `backend/scripts/evaluate.py`: Removed obsolete 0-byte stub (replaced by active benchmark in `backend/tests/benchmark_accuracy.py`).
+  - `backend/app/scoring_config.json`: Removed obsolete 0-byte file (scoring logic encapsulated in `backend/app/ml/scoring.py`).
+  - `frontend/public/{file, globe, next, vercel, window}.svg`: Removed 5 unused boilerplate Next.js starter template SVGs.
+- **Files Modified**:
+  - `backend/requirements.txt`: Explicitly declared `requests>=2.31.0` dependency required for email dispatch.
+  - `backend/app/db.py`: Exported canonical `build_blurred_public_url()` helper.
+  - `backend/app/routes/items.py` & `backend/app/routes/matches.py`: Deduplicated URL generation by utilizing shared `build_blurred_public_url()`.
+- **Reason**: Keep codebase clean, efficient, and maintainable; avoid deployment failures from undeclared dependencies; eliminate dead assets.
+- **Tests Executed**:
+  - `python backend/tests/test_notifications.py` (all 7 tests PASSED).
+  - `python backend/tests/test_admin.py` (all tests PASSED).
+  - `python backend/tests/test_ml_and_matching.py` (all tests PASSED).
+  - `npm run build` in `frontend/` (compiled successfully with 0 errors).
+- **Test Results**: All tests and production builds passed with 0 errors.
+- **Outstanding Issues**:
+  - Campus ground-truth dataset curation (`data/ground_truth.csv`, `data/seed_items.json`).
+
 

@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from app.auth import get_current_user
-from app.db import get_supabase_admin
+from app.db import get_supabase_admin, build_blurred_public_url
 from app.models import (
     ItemResponse,
     ItemKind,
@@ -73,14 +73,6 @@ def validate_location(location_id: str) -> None:
         )
 
 
-def build_blurred_public_url(supabase_url: Any, path: Optional[str]) -> Optional[str]:
-    """
-    Constructs a normalized public URL for blurred images without duplicate slashes.
-    """
-    if not path:
-        return None
-    base = str(supabase_url).rstrip("/")
-    return f"{base}/storage/v1/object/public/blurred/{path}"
 
 
 
