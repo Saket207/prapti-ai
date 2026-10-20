@@ -81,12 +81,15 @@ export default function AdminDashboardPage() {
   const handleInspectOriginal = async (item: Item) => {
     setViewingOriginalItem(item);
     setOriginalPhotoUrl(null);
+    if (!item.blurred_image_url) {
+      return;
+    }
     setLoadingOriginal(true);
     try {
       const url = await getAdminOriginalPhotoUrl(item.id);
       setOriginalPhotoUrl(url);
-    } catch (err) {
-      console.error("Failed to fetch original photo:", err);
+    } catch {
+      // Handled gracefully without popping console overlay
     } finally {
       setLoadingOriginal(false);
     }
@@ -361,9 +364,15 @@ export default function AdminDashboardPage() {
                             </button>
                             <button
                               onClick={() => handleInspectOriginal(item)}
-                              className="px-2.5 py-1 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 text-[11px] font-semibold border border-cyan-800/60 transition-colors"
+                              disabled={!item.blurred_image_url}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                                item.blurred_image_url
+                                  ? "bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border-cyan-800/60 cursor-pointer"
+                                  : "bg-slate-900/40 text-slate-600 border-white/[0.04] cursor-not-allowed"
+                              }`}
+                              title={item.blurred_image_url ? "Inspect unredacted photo" : "No photo attached to this report"}
                             >
-                              Original Photo
+                              {item.blurred_image_url ? "Original Photo" : "No Photo"}
                             </button>
                           </td>
                         </tr>

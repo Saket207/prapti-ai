@@ -267,18 +267,21 @@ export async function updateAdminItemStatus(
 export async function getAdminOriginalPhotoUrl(
   itemId: string,
   token = "dev-test-admin-token"
-): Promise<string> {
+): Promise<string | null> {
   const res = await fetch(`${API_BASE_URL}/admin/original/${itemId}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
     },
   });
+  if (res.status === 404) {
+    return null;
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || "Failed to retrieve original photo");
   }
   const data = await res.json();
-  return data.original_url;
+  return data.original_url || null;
 }
 
