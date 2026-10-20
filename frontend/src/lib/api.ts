@@ -210,3 +210,75 @@ export async function getAdminStats(token = "dev-test-admin-token"): Promise<Adm
   }
   return res.json();
 }
+
+/**
+ * List all items for campus security review (Admin)
+ */
+export async function getAdminItems(
+  filters?: { status?: string; location_id?: string; kind?: string },
+  token = "dev-test-admin-token"
+): Promise<Item[]> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.append("status", filters.status);
+  if (filters?.location_id) params.append("location_id", filters.location_id);
+  if (filters?.kind) params.append("kind", filters.kind);
+
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  const res = await fetch(`${API_BASE_URL}/admin/items${qs}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Failed to fetch admin items");
+  }
+  return res.json();
+}
+
+/**
+ * Update an item's status with an audit note (Admin)
+ */
+export async function updateAdminItemStatus(
+  itemId: string,
+  newStatus: ItemStatus,
+  note?: string,
+  token = "dev-test-admin-token"
+): Promise<Item> {
+  const res = await fetch(`${API_BASE_URL}/admin/items/${itemId}/status`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status: newStatus, note: note || "Status updated by admin console" }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Failed to update item status");
+  }
+  return res.json();
+}
+
+/**
+ * Fetch temporary signed link to original unblurred photo for dispute resolution (Admin)
+ */
+export async function getAdminOriginalPhotoUrl(
+  itemId: string,
+  token = "dev-test-admin-token"
+): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/admin/original/${itemId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Failed to retrieve original photo");
+  }
+  const data = await res.json();
+  return data.original_url;
+}
+

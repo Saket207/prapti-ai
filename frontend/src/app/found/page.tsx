@@ -1,39 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import Image from "next/image";
 import { reportFoundItem, Item } from "@/lib/api";
 import campusLocations from "@/data/campus_locations.json";
+import ImageUpload from "@/components/ImageUpload";
 
 export default function ReportFoundPage() {
   const [photo, setPhoto] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string>(campusLocations[0]?.id || "block_2_library");
+  const [description, setDescription] = useState("");
   const [secretQuestion, setSecretQuestion] = useState("");
   const [secretAnswer, setSecretAnswer] = useState("");
-  const [description, setDescription] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdItem, setCreatedItem] = useState<Item | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPhoto(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!photo) {
-      setError("Please select or capture a photograph of the found item.");
+      setError("Please capture or select a photo of the item you found.");
       return;
     }
     if (!secretQuestion.trim() || !secretAnswer.trim()) {
-      setError("Secret question and answer are required to protect ownership.");
+      setError("Secret verification question and answer are required to prevent fraudulent claims.");
       return;
     }
 
@@ -56,7 +48,7 @@ export default function ReportFoundPage() {
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError("Failed to submit found report. Please check your connection.");
+        setError("Failed to register found item. Please check your connection.");
       }
     } finally {
       setLoading(false);
@@ -64,204 +56,211 @@ export default function ReportFoundPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
-      <div className="mb-8">
-        <Link href="/" className="text-sm text-cyan-400 hover:text-cyan-300 flex items-center gap-1 mb-2">
-          ← Back to Dashboard
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 space-y-8">
+      {/* Header */}
+      <div>
+        <Link
+          href="/"
+          className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1 mb-3 transition-colors"
+        >
+          ← Return to Overview
         </Link>
-        <h1 className="text-3xl font-extrabold text-white">Report a Found Item 🎁</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          Upload a photo of the item you found on DSCE campus. Faces and student IDs are automatically blurred by AI.
-        </p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-950/80 border border-emerald-800/60 text-emerald-400 flex items-center justify-center text-xl font-bold">
+            🎁
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white">Report a Found Item</h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+              Securely index property found on DSCE campus. Faces & ID credentials are automatically blurred by OpenCV.
+            </p>
+          </div>
+        </div>
       </div>
 
       {createdItem ? (
-        <div className="p-8 rounded-2xl bg-emerald-950/40 border border-emerald-800/60 backdrop-blur-md space-y-6 text-center animate-fade-in">
-          <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-3xl mx-auto">
+        /* Success Card */
+        <div className="p-8 rounded-3xl glass-panel border border-emerald-700/60 bg-emerald-950/20 text-center space-y-6 animate-fade-in">
+          <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-3xl mx-auto">
             ✓
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white">Found Report Registered!</h2>
-            <p className="text-sm text-slate-300 mt-1">
-              Item successfully indexed. Our CLIP AI pipeline is now comparing it against active lost reports.
+            <h2 className="text-2xl font-black text-white">Found Item Successfully Indexed!</h2>
+            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-md mx-auto">
+              Our neural network has analyzed the photograph, extracted multimodal embeddings, and automatically blurred sensitive regions.
             </p>
           </div>
 
-          <div className="max-w-md mx-auto p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-left space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400 uppercase font-semibold">Item ID</span>
-              <span className="text-xs font-mono text-cyan-300">{createdItem.id}</span>
+          <div className="max-w-md mx-auto p-5 rounded-2xl bg-slate-950/70 border border-white/[0.08] text-left space-y-3">
+            {createdItem.blurred_image_url && (
+              <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-900 border border-white/[0.08] mb-3">
+                <Image
+                  src={createdItem.blurred_image_url}
+                  alt="Redacted public thumbnail"
+                  fill
+                  className="object-cover"
+                />
+                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-md border border-white/[0.1] text-[10px] font-mono text-cyan-300">
+                  🔒 Public Redacted View
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 uppercase font-semibold">Item ID:</span>
+              <span className="font-mono text-cyan-300 text-[11px]">{createdItem.id}</span>
             </div>
+
             {createdItem.category && (
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400 uppercase font-semibold">AI Tagged Category</span>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800/60">
-                  {createdItem.category} {createdItem.color ? `(${createdItem.color})` : ""}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 uppercase font-semibold">AI Classified Category:</span>
+                <span className="font-bold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800/60">
+                  {createdItem.category} {createdItem.color ? `• ${createdItem.color}` : ""}
                 </span>
               </div>
             )}
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400 uppercase font-semibold">Location</span>
-              <span className="text-xs text-slate-200">{createdItem.location_id}</span>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 uppercase font-semibold">Campus Location:</span>
+              <span className="font-mono text-slate-300">{createdItem.location_id}</span>
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-4 pt-2">
+          <div className="flex justify-center gap-3 pt-2">
+            <Link
+              href="/items"
+              className="px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-all"
+            >
+              Go to My Belongings →
+            </Link>
             <button
               onClick={() => {
                 setCreatedItem(null);
                 setPhoto(null);
-                setPreviewUrl(null);
+                setDescription("");
                 setSecretQuestion("");
                 setSecretAnswer("");
-                setDescription("");
               }}
-              className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold transition-all"
+              className="px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-semibold text-xs border border-white/[0.08] transition-all"
             >
               Report Another Item
             </button>
-            <Link
-              href="/items"
-              className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold transition-all"
-            >
-              View My Reported Items
-            </Link>
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-6">
+        /* Found Item Form */
+        <form onSubmit={handleSubmit} className="p-6 sm:p-8 rounded-3xl glass-panel space-y-6">
           {error && (
-            <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-800/60 text-rose-300 text-sm flex items-center gap-2">
-              <span>⚠️</span>
-              <span>{error}</span>
+            <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
+              <span>⚠️</span> {error}
             </div>
           )}
 
-          {/* Photo Upload Zone */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-200 mb-2">
-              Photograph of Item <span className="text-rose-400">*</span>
-            </label>
-            <div className="border-2 border-dashed border-slate-700 hover:border-cyan-500/60 rounded-2xl p-6 text-center transition-colors bg-slate-950/40 relative">
-              {previewUrl ? (
-                <div className="relative w-full max-w-xs mx-auto aspect-video rounded-xl overflow-hidden shadow-md">
-                  <Image src={previewUrl} alt="Preview" fill className="object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhoto(null);
-                      setPreviewUrl(null);
-                    }}
-                    className="absolute top-2 right-2 bg-slate-900/80 text-white rounded-full p-1 text-xs hover:bg-rose-600 transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <label className="cursor-pointer block">
-                  <div className="text-4xl mb-2">📷</div>
-                  <span className="text-sm font-semibold text-cyan-400 hover:text-cyan-300">
-                    Click to upload
-                  </span>{" "}
-                  <span className="text-sm text-slate-400">or take a photo</span>
-                  <p className="text-xs text-slate-500 mt-1">JPEG, PNG, or WebP up to 5 MB</p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </div>
+          {/* Section 1: Item Photograph */}
+          <div className="space-y-4">
+            <ImageUpload
+              onFileSelect={setPhoto}
+              required
+              label="1. Photograph of Found Item"
+              sublabel="Capture or upload the found item. If student faces or college ID cards appear, OpenCV automatically redacts them."
+            />
           </div>
 
-          {/* Location Dropdown */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-200 mb-2">
-              Campus Location <span className="text-rose-400">*</span>
+          {/* Section 2: Campus Location */}
+          <div className="space-y-2 pt-2 border-t border-white/[0.06]">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+              2. Where on DSCE Campus Was It Found? <span className="text-rose-400">*</span>
             </label>
             <select
               value={locationId}
               onChange={(e) => setLocationId(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:outline-none focus:border-cyan-500 text-sm"
+              className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/[0.08] text-white text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors cursor-pointer"
             >
               {campusLocations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.name}
+                <option key={loc.id} value={loc.id} className="bg-slate-950 text-white">
+                  {loc.name} ({loc.sector})
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-200 mb-2">
-              Description <span className="text-slate-500 text-xs font-normal">(Optional)</span>
+          {/* Section 3: Description */}
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+              3. Visual Description <span className="text-slate-500 lowercase">(optional)</span>
             </label>
             <textarea
-              rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Black leather wallet found near staircase, contains college ID card and keys"
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 text-sm resize-none"
+              placeholder="e.g. Found on 2nd floor library reading table. Black OnePlus earphone case with charging cord."
+              rows={2}
+              className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/[0.08] text-white text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors placeholder:text-slate-600"
             />
           </div>
 
-          {/* Anti-Theft Secret Question & Answer */}
-          <div className="p-5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-4">
-            <div className="flex items-center gap-2 text-cyan-400 font-semibold text-sm">
-              <span>🔐</span>
-              <span>Anti-Theft Verification Challenge</span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Set a question that only the true owner would know. Claimants will be prompted to answer this before retrieving the item.
-            </p>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Secret Question <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={secretQuestion}
-                onChange={(e) => setSecretQuestion(e.target.value)}
-                placeholder="e.g. What sticker or keychain is attached to this?"
-                className="w-full px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 text-sm"
-                required
-              />
+          {/* Section 4: Secret Verification Challenge */}
+          <div className="p-5 rounded-2xl bg-slate-950/60 border border-amber-900/40 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 text-base">🔐</span>
+              <div>
+                <h4 className="font-bold text-white text-xs uppercase tracking-wider">
+                  4. Ownership Secret Challenge Question
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Set a question that only the genuine owner can answer. Prevents wrongful claims across campus.
+                </p>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Secret Answer <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={secretAnswer}
-                onChange={(e) => setSecretAnswer(e.target.value)}
-                placeholder="e.g. Batman logo"
-                className="w-full px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 text-sm"
-                required
-              />
-              <p className="text-[11px] text-slate-500 mt-1">
-                Kept strictly confidential in locked backend storage. Never exposed to students.
-              </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                  Secret Challenge Question <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={secretQuestion}
+                  onChange={(e) => setSecretQuestion(e.target.value)}
+                  placeholder="e.g. What is the lockscreen wallpaper? / What sticker is on the back?"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.08] text-white text-xs focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                  Correct Answer <span className="text-rose-400">*</span>{" "}
+                  <span className="text-slate-500 lowercase">(never shown publicly)</span>
+                </label>
+                <input
+                  type="text"
+                  value={secretAnswer}
+                  onChange={(e) => setSecretAnswer(e.target.value)}
+                  placeholder="e.g. Iron Man / Yellow Smiley Sticker / Red keychain"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/[0.08] text-white text-xs focus:outline-none focus:border-amber-400"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Matching is case-insensitive. Claimants receive 3 attempts before their account is locked.
+                </p>
+              </div>
             </div>
           </div>
 
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 shadow-lg shadow-emerald-500/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-4 rounded-2xl font-bold text-white text-sm bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 shadow-xl shadow-emerald-500/25 transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
           >
             {loading ? (
               <>
-                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                <span>Running AI Privacy Blur & Ingesting...</span>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Blurring Faces & Computing CLIP Multimodal Vectors...</span>
               </>
             ) : (
-              <span>Submit Found Report</span>
+              <>
+                <span>🎁</span>
+                <span>Register Found Item & Activate Matching</span>
+              </>
             )}
           </button>
         </form>
