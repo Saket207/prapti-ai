@@ -34,6 +34,8 @@ class Settings(BaseSettings):
 
     # Notification & Email
     BREVO_API_KEY: Optional[str] = None
+    BREVO_SMTP_LOGIN: Optional[str] = None
+    BREVO_SMTP_PASSWORD: Optional[str] = None
     SENDER_EMAIL: Optional[str] = None
 
 

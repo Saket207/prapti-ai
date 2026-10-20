@@ -69,6 +69,9 @@ def send_email(
 
         # 2. Try Brevo SMTP relay (smtp-relay.brevo.com:587)
         try:
+            smtp_login = settings.BREVO_SMTP_LOGIN or os.getenv("BREVO_SMTP_LOGIN")
+            smtp_pass = settings.BREVO_SMTP_PASSWORD or os.getenv("BREVO_SMTP_PASSWORD") or api_key
+
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
             msg["From"] = f"{sender_name} <{sender_email}>"
@@ -80,7 +83,7 @@ def send_email(
 
             with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=6) as server:
                 server.starttls()
-                server.login(sender_email, api_key)
+                server.login(smtp_login, smtp_pass)
                 server.send_message(msg)
                 logger.info(f"Email successfully sent to {to_email} via Brevo SMTP relay.")
                 return True
