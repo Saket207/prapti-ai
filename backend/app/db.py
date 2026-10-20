@@ -35,3 +35,14 @@ def get_supabase_user_client(access_token: str) -> Client:
     client = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
     client.postgrest.auth(access_token)
     return client
+
+
+def build_blurred_public_url(supabase_url: Any, path: Optional[str]) -> Optional[str]:
+    """
+    Constructs the canonical public URL for an image in the 'blurred' Supabase storage bucket.
+    """
+    if not path or not path.strip():
+        return None
+    clean_path = path.strip().lstrip("/")
+    base = str(supabase_url).rstrip("/")
+    return f"{base}/storage/v1/object/public/blurred/{clean_path}"

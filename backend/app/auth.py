@@ -30,12 +30,19 @@ async def get_current_user(
     token = credentials.credentials
 
     # Development-only bypass token for local testing without active browser login
-    if settings.DEBUG and token == "dev-test-student-token":
-        return {
-            "id": "00000000-0000-0000-0000-000000000001",
-            "email": "student.test@dsce.edu.in",
-            "role": "student",
-        }
+    if settings.DEBUG:
+        if token == "dev-test-student-token":
+            return {
+                "id": "fe8af11b-4910-4509-9a12-2f268b8b60a5",
+                "email": "student.test@dsce.edu.in",
+                "role": "student",
+            }
+        elif token == "dev-test-admin-token":
+            return {
+                "id": "e10a258e-fbef-45e3-b2e8-b2b3e9d46694",
+                "email": "admin.security@dsce.edu.in",
+                "role": "admin",
+            }
 
     # Verify real JWT token with Supabase Auth
     try:
@@ -50,10 +57,11 @@ async def get_current_user(
             )
             
         user = user_response.user
+        role = getattr(user, "user_metadata", {}).get("role", "student")
         return {
             "id": str(user.id),
             "email": user.email,
-            "role": getattr(user, "user_metadata", {}).get("role", "student"),
+            "role": role,
         }
     except HTTPException:
         raise
@@ -64,3 +72,19 @@ async def get_current_user(
             detail="Authentication failed. Invalid token provided.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def require_admin(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    FastAPI dependency that enforces administrative privileges.
+    Raises HTTP 403 Forbidden if the user's role is not 'admin'.
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required.",
+        )
+    return current_user
+

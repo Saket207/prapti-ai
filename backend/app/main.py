@@ -66,14 +66,16 @@ app = FastAPI(
 allowed_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://*.vercel.app",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.ENVIRONMENT == "development" else allowed_origins,
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=600,  # Cache pre-flight OPTIONS requests for 10 minutes
@@ -163,10 +165,11 @@ async def root():
 from app.routes.items import router as items_router
 from app.routes.matches import router as matches_router
 from app.routes.claims import router as claims_router, handover_router
+from app.routes.admin import router as admin_router
 
 app.include_router(items_router, prefix="/items", tags=["Items"])
 app.include_router(matches_router, prefix="/matches", tags=["Matches"])
 app.include_router(claims_router, prefix="/claims", tags=["Claims"])
 app.include_router(handover_router, tags=["Handover"])
-# Future modules will be mounted here:
-# app.include_router(admin_router, prefix="/admin", tags=["Admin"])
+app.include_router(admin_router, prefix="/admin", tags=["Admin"])
+

@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from app.auth import get_current_user
-from app.db import get_supabase_admin
+from app.db import get_supabase_admin, build_blurred_public_url
 from app.models import (
     ItemResponse,
     ItemKind,
@@ -17,12 +17,26 @@ from app.models import (
     MatchBreakdown,
 )
 from app.ml.privacy_blur import redact_image_for_privacy
+from app.ml.clip import (
+    generate_image_embedding,
+    generate_text_embedding,
+    predict_category_and_color,
+    predict_category_from_text,
+)
+from app.ml.scoring import (
+    LOCATIONS_FILE,
+    get_location_metadata,
+    compute_location_score,
+    compute_time_score,
+    compute_text_score,
+    compute_visual_score,
+    compute_composite_score,
+)
+from notifications.notify import notify_user_by_id
 
 logger = logging.getLogger("prapti-items")
 router = APIRouter()
 
-# Load valid campus location IDs from shared/campus_locations.json
-LOCATIONS_FILE = Path(__file__).resolve().parent.parent.parent.parent / "shared" / "campus_locations.json"
 _VALID_LOCATIONS: Optional[set] = None
 
 
@@ -59,63 +73,7 @@ def validate_location(location_id: str) -> None:
         )
 
 
-_LOCATION_METADATA: Optional[Dict[str, Dict[str, Any]]] = None
 
-
-def get_location_metadata() -> Dict[str, Dict[str, Any]]:
-    global _LOCATION_METADATA
-    if _LOCATION_METADATA is None:
-        try:
-            if LOCATIONS_FILE.exists():
-                with open(LOCATIONS_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    _LOCATION_METADATA = {item["id"]: item for item in data if "id" in item}
-            else:
-                _LOCATION_METADATA = {}
-        except Exception:
-            _LOCATION_METADATA = {}
-    return _LOCATION_METADATA
-
-
-def compute_location_score(loc1: str, loc2: str) -> float:
-    if loc1 == loc2:
-        return 1.0
-    meta = get_location_metadata()
-    i1 = meta.get(loc1, {})
-    i2 = meta.get(loc2, {})
-    if i1 and i2:
-        if i1.get("sector") and i1.get("sector") == i2.get("sector"):
-            return 0.65
-        if i1.get("zone") and i1.get("zone") == i2.get("zone"):
-            return 0.40
-    return 0.15
-
-
-def compute_time_score(dt1: datetime, dt2: datetime) -> float:
-    hours_diff = abs((dt1 - dt2).total_seconds()) / 3600.0
-    if hours_diff <= 2.0:
-        return 1.0
-    elif hours_diff <= 12.0:
-        return 0.85
-    elif hours_diff <= 24.0:
-        return 0.70
-    elif hours_diff <= 72.0:
-        return 0.50
-    else:
-        return max(0.1, round(1.0 - (hours_diff / 168.0), 2))
-
-
-def compute_text_score(desc1: Optional[str], desc2: Optional[str]) -> float:
-    if not desc1 or not desc2:
-        return 0.5  # neutral baseline
-    w1 = set(desc1.lower().split())
-    w2 = set(desc2.lower().split())
-    if not w1 or not w2:
-        return 0.5
-    intersection = len(w1 & w2)
-    union = len(w1 | w2)
-    jaccard = intersection / max(union, 1)
-    return min(1.0, max(0.2, round(jaccard * 2.5, 2)))
 
 
 # =====================================================================
@@ -181,7 +139,14 @@ async def report_found_item(
 
     supabase = get_supabase_admin()
 
-    # 6. Upload images to Supabase Storage buckets
+    # 6. Generate CLIP multimodal embeddings and predict category & color
+    image_emb = generate_image_embedding(photo_bytes)
+    text_emb = generate_text_embedding(description) if description else None
+    pred_category, pred_color = predict_category_and_color(photo_bytes)
+    if not pred_category and description:
+        pred_category = predict_category_from_text(description)
+
+    # 7. Upload images to Supabase Storage buckets
     try:
         supabase.storage.from_("originals").upload(
             path=original_path,
@@ -196,26 +161,28 @@ async def report_found_item(
     except Exception as exc:
         logger.warning(f"Storage upload notice (continuing with DB record): {exc}")
 
-    # 7. Insert item record into items table
+    # 8. Insert item record into items table
     item_payload = {
         "id": item_id,
         "reporter_id": current_user["id"],
         "kind": ItemKind.FOUND.value,
         "status": ItemStatus.FOUND.value,
         "description": description.strip() if description else None,
-        "category": None,
-        "color": None,
+        "category": pred_category,
+        "color": pred_color,
         "location_id": location_id,
         "event_time": event_dt.isoformat(),
         "original_image_path": original_path,
         "blurred_image_path": blurred_path,
+        "image_embedding": image_emb,
+        "text_embedding": text_emb,
         "created_at": now_dt.isoformat(),
     }
 
     try:
         supabase.table("items").insert(item_payload).execute()
 
-        # 8. Insert secret challenge into item_secrets table (backend only)
+        # 9. Insert secret challenge into item_secrets table (backend only)
         secret_payload = {
             "item_id": item_id,
             "question": secret_question.strip(),
@@ -229,20 +196,77 @@ async def report_found_item(
             detail="Failed to save found item. Please try again.",
         )
 
-    blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{blurred_path}"
+    blurred_url = build_blurred_public_url(supabase.supabase_url, blurred_path)
+
+    # Check open lost items and notify owners if a high-confidence match exists
+    try:
+        open_lost_res = (
+            supabase.table("items")
+            .select("id, reporter_id, category, description, location_id, event_time, image_embedding, text_embedding")
+            .eq("kind", "lost")
+            .eq("status", "lost")
+            .execute()
+        )
+        lost_items = open_lost_res.data if open_lost_res else []
+        for lost_it in lost_items:
+            cat_lost = lost_it.get("category")
+            if pred_category and cat_lost and pred_category != cat_lost:
+                continue
+
+            score_loc = compute_location_score(location_id, lost_it.get("location_id"))
+            score_time = compute_time_score(event_dt, lost_it.get("event_time"))
+            score_text = compute_text_score(
+                item_payload.get("text_embedding"),
+                lost_it.get("text_embedding"),
+                cat1=pred_category,
+                cat2=cat_lost,
+            )
+            score_visual = compute_visual_score(
+                image_embedding,
+                lost_it.get("image_embedding"),
+                item_payload.get("text_embedding"),
+                lost_it.get("text_embedding"),
+            )
+            has_both_vis = bool(image_embedding and lost_it.get("image_embedding"))
+            has_one_vis = bool(image_embedding or lost_it.get("image_embedding")) and not has_both_vis
+            composite_score, _ = compute_composite_score(
+                score_visual,
+                score_text,
+                score_loc,
+                score_time,
+                cat1=pred_category,
+                cat2=cat_lost,
+                has_both_visual=has_both_vis,
+                has_one_visual=has_one_vis,
+            )
+            if composite_score >= 0.65:
+                notify_user_by_id(
+                    "match_found",
+                    lost_it["reporter_id"],
+                    {
+                        "category": pred_category or "item",
+                        "score": composite_score,
+                        "location_id": location_id,
+                        "description": item_payload.get("description"),
+                    },
+                    supabase_client=supabase,
+                )
+    except Exception as n_err:
+        logger.warning(f"Notification search for found item failed non-critically: {n_err}")
 
     return ItemResponse(
         id=UUID(item_id),
         kind=ItemKind.FOUND,
         status=ItemStatus.FOUND,
         description=item_payload["description"],
-        category=item_payload["category"],
-        color=item_payload["color"],
+        category=pred_category,
+        color=pred_color,
         location_id=location_id,
         event_time=event_dt,
         blurred_image_url=blurred_url,
         created_at=now_dt,
     )
+
 
 
 # =====================================================================
@@ -310,13 +334,13 @@ async def report_lost_item(
                 supabase.storage.from_("blurred").upload(
                     blurred_path, blurred_bytes, {"content-type": "image/jpeg"}
                 )
-                blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{blurred_path}"
+                blurred_url = build_blurred_public_url(supabase.supabase_url, blurred_path)
             except Exception as exc:
                 logger.warning(f"Storage upload notice (lost item): {exc}")
     else:
         supabase = get_supabase_admin()
 
-    # 4. Parse event time
+    # 4. Parse event time and generate CLIP embeddings
     now_dt = datetime.now(timezone.utc)
     if event_time:
         try:
@@ -326,6 +350,14 @@ async def report_lost_item(
     else:
         event_dt = now_dt
 
+    lost_image_emb = generate_image_embedding(photo_bytes) if (has_photo and 'photo_bytes' in locals()) else None
+    lost_text_emb = generate_text_embedding(description) if has_description else None
+    pred_category, pred_color = (
+        predict_category_and_color(photo_bytes) if (has_photo and 'photo_bytes' in locals()) else (None, None)
+    )
+    if not pred_category and description:
+        pred_category = predict_category_from_text(description)
+
     # 5. Insert lost item into items table
     item_payload = {
         "id": item_id,
@@ -333,12 +365,14 @@ async def report_lost_item(
         "kind": ItemKind.LOST.value,
         "status": ItemStatus.LOST.value,
         "description": description.strip() if description else None,
-        "category": None,
-        "color": None,
+        "category": pred_category,
+        "color": pred_color,
         "location_id": location_id,
         "event_time": event_dt.isoformat(),
         "original_image_path": original_path,
         "blurred_image_path": blurred_path,
+        "image_embedding": lost_image_emb,
+        "text_embedding": lost_text_emb,
         "created_at": now_dt.isoformat(),
     }
 
@@ -369,7 +403,9 @@ async def report_lost_item(
     try:
         candidates_res = (
             supabase.table("items")
-            .select("id, kind, status, description, category, color, location_id, event_time, blurred_image_path, created_at")
+            .select(
+                "id, kind, status, description, category, color, location_id, event_time, blurred_image_path, image_embedding, text_embedding, created_at"
+            )
             .eq("kind", "found")
             .in_("status", ["found", "matched"])
             .order("created_at", desc=True)
@@ -384,18 +420,35 @@ async def report_lost_item(
 
             score_loc = compute_location_score(location_id, cand["location_id"])
             score_time = compute_time_score(event_dt, cand_time)
-            score_text = compute_text_score(item_payload["description"], cand.get("description"))
-            score_visual = 0.5  # Neutral baseline until CLIP vector similarity is active
-
-            # Weighted composite formula: visual (35%) + text (35%) + location (20%) + time (10%)
-            composite_score = round(
-                (score_visual * 0.35) + (score_text * 0.35) + (score_loc * 0.20) + (score_time * 0.10),
-                2,
+            score_text = compute_text_score(
+                item_payload["description"],
+                cand.get("description"),
+                lost_text_emb,
+                cand.get("text_embedding"),
+                cat1=item_payload.get("category"),
+                cat2=cand.get("category"),
+            )
+            score_visual = compute_visual_score(
+                lost_image_emb,
+                cand.get("image_embedding"),
+                lost_text_emb,
+                cand.get("text_embedding"),
             )
 
-            cand_blurred_url = None
-            if cand.get("blurred_image_path"):
-                cand_blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{cand['blurred_image_path']}"
+            has_both_visual = bool(lost_image_emb and cand.get("image_embedding"))
+            has_one_visual = bool(lost_image_emb or cand.get("image_embedding")) and not has_both_visual
+            composite_score, breakdown_dict = compute_composite_score(
+                score_visual,
+                score_text,
+                score_loc,
+                score_time,
+                cat1=item_payload.get("category"),
+                cat2=cand.get("category"),
+                has_both_visual=has_both_visual,
+                has_one_visual=has_one_visual,
+            )
+
+            cand_blurred_url = build_blurred_public_url(supabase.supabase_url, cand.get("blurred_image_path"))
 
             cand_item = ItemResponse(
                 id=cand["id"],
@@ -411,10 +464,10 @@ async def report_lost_item(
             )
 
             breakdown = MatchBreakdown(
-                visual=score_visual,
-                text=score_text,
-                location=score_loc,
-                time=score_time,
+                visual=breakdown_dict["visual"],
+                text=breakdown_dict["text"],
+                location=breakdown_dict["location"],
+                time=breakdown_dict["time"],
             )
 
             scored_candidates.append(
@@ -425,18 +478,37 @@ async def report_lost_item(
                 )
             )
 
-        # Sort by composite score descending and pick top 3 (only above threshold 0.40)
+        # Sort by composite score descending and pick top 3 (high-confidence threshold >= 0.50)
         scored_candidates.sort(key=lambda m: m.score, reverse=True)
-        matches = [m for m in scored_candidates if m.score >= 0.40][:3]
+        matches = [m for m in scored_candidates if m.score >= 0.50][:3]
 
     except Exception as exc:
         logger.warning(f"Notice: Candidate matching search non-critical failure: {exc}")
         matches = []
 
+    # Dispatch 'match_found' event if high-confidence match found
+    try:
+        if matches and matches[0].score >= 0.65:
+            top_m = matches[0]
+            notify_user_by_id(
+                "match_found",
+                user_id,
+                {
+                    "category": top_m.found_item.category or "item",
+                    "score": top_m.score,
+                    "location_id": top_m.found_item.location_id,
+                    "description": top_m.found_item.description,
+                },
+                supabase_client=supabase,
+            )
+    except Exception as n_err:
+        logger.warning(f"Notification dispatch failed in report_lost_item: {n_err}")
+
     return LostItemCreatedResponse(
         item=created_item,
         matches=matches,
     )
+
 
 
 # =====================================================================
@@ -472,9 +544,7 @@ async def get_my_items(
         result = []
         for row in items_data:
             # Construct public URL for blurred image if path exists
-            blurred_url = None
-            if row.get("blurred_image_path"):
-                blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{row['blurred_image_path']}"
+            blurred_url = build_blurred_public_url(supabase.supabase_url, row.get("blurred_image_path"))
             
             result.append(
                 ItemResponse(
@@ -526,7 +596,7 @@ async def get_item_by_id(
             .execute()
         )
         
-        item_data = item_res.data
+        item_data = item_res.data if item_res else None
         if not item_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -555,9 +625,7 @@ async def get_item_by_id(
         )
         
         # Construct public blurred image URL
-        blurred_url = None
-        if item_data.get("blurred_image_path"):
-            blurred_url = f"{supabase.supabase_url}/storage/v1/object/public/blurred/{item_data['blurred_image_path']}"
+        blurred_url = build_blurred_public_url(supabase.supabase_url, item_data.get("blurred_image_path"))
             
         clean_item = ItemResponse(
             id=item_data["id"],
