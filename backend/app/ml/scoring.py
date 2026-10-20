@@ -92,58 +92,58 @@ def compute_time_score(dt1: datetime, dt2: datetime) -> float:
 def compute_text_score(
     desc1: Optional[str],
     desc2: Optional[str],
-    text_emb1: Optional[List[float]] = None,
-    text_emb2: Optional[List[float]] = None,
+    text_emb1: Any = None,
+    text_emb2: Any = None,
 ) -> float:
     """
     Computes text semantic similarity using CLIP text embeddings when available,
     falling back to Jaccard word-overlap if embeddings are missing.
     """
     # 1. Use CLIP text embeddings if both vectors are present
-    if text_emb1 and text_emb2:
+    if text_emb1 is not None and text_emb2 is not None:
         return compute_cosine_similarity(text_emb1, text_emb2)
 
     # 2. Text string Jaccard fallback
     if not desc1 or not desc2:
-        return 0.50  # Neutral baseline
+        return 0.00
 
     w1 = set(desc1.lower().split())
     w2 = set(desc2.lower().split())
     if not w1 or not w2:
-        return 0.50
+        return 0.00
 
     intersection = len(w1 & w2)
     union = len(w1 | w2)
     jaccard = intersection / max(union, 1)
-    return min(1.00, max(0.20, round(jaccard * 2.5, 2)))
+    return round(float(np.clip(jaccard * 1.5, 0.0, 1.0)), 2)
 
 
 def compute_visual_score(
-    img_emb1: Optional[List[float]],
-    img_emb2: Optional[List[float]],
-    text_emb1: Optional[List[float]] = None,
-    text_emb2: Optional[List[float]] = None,
+    img_emb1: Any = None,
+    img_emb2: Any = None,
+    text_emb1: Any = None,
+    text_emb2: Any = None,
 ) -> float:
     """
     Computes visual similarity score using CLIP 512-dim multimodal vectors:
     - Image-to-Image cosine similarity when both items have photos.
     - Cross-modal Image-to-Text cosine similarity when one item is text-only (e.g. lost report with description)
       and the other has an image.
-    - Falls back to 0.50 neutral baseline when no embeddings are available.
+    - Returns 0.00 (no free points) when no images are involved.
     """
     # 1. Direct image-to-image similarity
-    if img_emb1 and img_emb2:
+    if img_emb1 is not None and img_emb2 is not None:
         return compute_cosine_similarity(img_emb1, img_emb2)
 
     # 2. Cross-modal: lost item text vs found item image
-    if text_emb1 and img_emb2:
+    if text_emb1 is not None and img_emb2 is not None:
         return compute_cosine_similarity(text_emb1, img_emb2)
 
     # 3. Cross-modal: lost item image vs found item text
-    if img_emb1 and text_emb2:
+    if img_emb1 is not None and text_emb2 is not None:
         return compute_cosine_similarity(img_emb1, text_emb2)
 
-    return 0.50
+    return 0.00
 
 
 def compute_composite_score(
@@ -151,24 +151,47 @@ def compute_composite_score(
     text_score: float,
     location_score: float,
     time_score: float,
+    cat1: Optional[str] = None,
+    cat2: Optional[str] = None,
+    has_both_visual: bool = False,
+    has_one_visual: bool = False,
 ) -> Tuple[float, Dict[str, float]]:
     """
-    Calculates weighted composite score according to Prapti-AI contract specification:
-    - Visual similarity: 35%
-    - Text semantic similarity: 35%
-    - Location spatial score: 20%
-    - Time temporal score: 10%
-    Returns the composite score and breakdown dictionary.
+    Calculates weighted composite score:
+    - If BOTH photos exist: Visual 35%, Text 35%, Location 20%, Time 10%
+    - If ONE photo exists: Cross-modal Visual 15%, Text 55%, Location 20%, Time 10%
+    - If NO photos exist: Text 60%, Location 30%, Time 10%
+    - Applies category mismatch penalty if items belong to completely different classes.
     """
-    composite = round(
-        (visual_score * 0.35)
-        + (text_score * 0.35)
-        + (location_score * 0.20)
-        + (time_score * 0.10),
-        2,
-    )
-    # Ensure clamped between 0.00 and 1.00
-    composite = max(0.00, min(1.00, composite))
+    if has_both_visual:
+        composite = (
+            (visual_score * 0.35)
+            + (text_score * 0.35)
+            + (location_score * 0.20)
+            + (time_score * 0.10)
+        )
+    elif has_one_visual:
+        composite = (
+            (visual_score * 0.15)
+            + (text_score * 0.55)
+            + (location_score * 0.20)
+            + (time_score * 0.10)
+        )
+    else:
+        composite = (
+            (text_score * 0.60)
+            + (location_score * 0.30)
+            + (time_score * 0.10)
+        )
+
+    # Severe penalty if categories are known and completely incompatible (e.g., earphones vs stationery)
+    if cat1 and cat2:
+        c1 = str(cat1).strip().lower()
+        c2 = str(cat2).strip().lower()
+        if c1 != c2:
+            composite *= 0.25
+
+    composite = round(max(0.00, min(1.00, composite)), 2)
 
     breakdown = {
         "visual": round(visual_score, 2),

@@ -123,8 +123,17 @@ async def get_matches_for_lost_item(
             lost_img_emb, cand.get("image_embedding"), lost_text_emb, cand.get("text_embedding")
         )
 
+        has_both_visual = bool(lost_img_emb and cand.get("image_embedding"))
+        has_one_visual = bool(lost_img_emb or cand.get("image_embedding")) and not has_both_visual
         composite_score, breakdown_dict = compute_composite_score(
-            score_visual, score_text, score_loc, score_time
+            score_visual,
+            score_text,
+            score_loc,
+            score_time,
+            cat1=lost_data.get("category"),
+            cat2=cand.get("category"),
+            has_both_visual=has_both_visual,
+            has_one_visual=has_one_visual,
         )
 
         base_url = str(supabase.supabase_url).rstrip("/")
@@ -162,9 +171,9 @@ async def get_matches_for_lost_item(
             )
         )
 
-    # 6. Sort descending and filter top 3 (threshold >= 0.40)
+    # 6. Sort descending and filter top 3 (threshold >= 0.50)
     scored_matches.sort(key=lambda m: m.score, reverse=True)
-    top_matches = [m for m in scored_matches if m.score >= 0.40][:3]
+    top_matches = [m for m in scored_matches if m.score >= 0.50][:3]
 
     return MatchesListResponse(matches=top_matches)
 

@@ -21,6 +21,7 @@ from app.ml.clip import (
     generate_image_embedding,
     generate_text_embedding,
     predict_category_and_color,
+    predict_category_from_text,
 )
 from app.ml.scoring import (
     LOCATIONS_FILE,
@@ -149,6 +150,8 @@ async def report_found_item(
     image_emb = generate_image_embedding(photo_bytes)
     text_emb = generate_text_embedding(description) if description else None
     pred_category, pred_color = predict_category_and_color(photo_bytes)
+    if not pred_category and description:
+        pred_category = predict_category_from_text(description)
 
     # 7. Upload images to Supabase Storage buckets
     try:
@@ -303,6 +306,8 @@ async def report_lost_item(
     pred_category, pred_color = (
         predict_category_and_color(photo_bytes) if (has_photo and 'photo_bytes' in locals()) else (None, None)
     )
+    if not pred_category and description:
+        pred_category = predict_category_from_text(description)
 
     # 5. Insert lost item into items table
     item_payload = {
@@ -379,8 +384,17 @@ async def report_lost_item(
                 cand.get("text_embedding"),
             )
 
+            has_both_visual = bool(lost_image_emb and cand.get("image_embedding"))
+            has_one_visual = bool(lost_image_emb or cand.get("image_embedding")) and not has_both_visual
             composite_score, breakdown_dict = compute_composite_score(
-                score_visual, score_text, score_loc, score_time
+                score_visual,
+                score_text,
+                score_loc,
+                score_time,
+                cat1=item_payload.get("category"),
+                cat2=cand.get("category"),
+                has_both_visual=has_both_visual,
+                has_one_visual=has_one_visual,
             )
 
             cand_blurred_url = build_blurred_public_url(supabase.supabase_url, cand.get("blurred_image_path"))
@@ -413,9 +427,9 @@ async def report_lost_item(
                 )
             )
 
-        # Sort by composite score descending and pick top 3 (only above threshold 0.40)
+        # Sort by composite score descending and pick top 3 (high-confidence threshold >= 0.50)
         scored_candidates.sort(key=lambda m: m.score, reverse=True)
-        matches = [m for m in scored_candidates if m.score >= 0.40][:3]
+        matches = [m for m in scored_candidates if m.score >= 0.50][:3]
 
     except Exception as exc:
         logger.warning(f"Notice: Candidate matching search non-critical failure: {exc}")
