@@ -376,6 +376,8 @@ async def report_lost_item(
                 cand.get("description"),
                 lost_text_emb,
                 cand.get("text_embedding"),
+                cat1=item_payload.get("category"),
+                cat2=cand.get("category"),
             )
             score_visual = compute_visual_score(
                 lost_image_emb,

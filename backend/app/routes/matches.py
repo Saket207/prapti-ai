@@ -114,10 +114,18 @@ async def get_matches_for_lost_item(
     for cand in candidates:
         cand_time = datetime.fromisoformat(cand["event_time"].replace("Z", "+00:00"))
 
+        lost_cat = lost_data.get("category")
+        cand_cat = cand.get("category")
+
         score_loc = compute_location_score(lost_location, cand["location_id"])
         score_time = compute_time_score(lost_event_time, cand_time)
         score_text = compute_text_score(
-            lost_desc, cand.get("description"), lost_text_emb, cand.get("text_embedding")
+            lost_desc,
+            cand.get("description"),
+            lost_text_emb,
+            cand.get("text_embedding"),
+            cat1=lost_cat,
+            cat2=cand_cat,
         )
         score_visual = compute_visual_score(
             lost_img_emb, cand.get("image_embedding"), lost_text_emb, cand.get("text_embedding")
@@ -130,8 +138,8 @@ async def get_matches_for_lost_item(
             score_text,
             score_loc,
             score_time,
-            cat1=lost_data.get("category"),
-            cat2=cand.get("category"),
+            cat1=lost_cat,
+            cat2=cand_cat,
             has_both_visual=has_both_visual,
             has_one_visual=has_one_visual,
         )

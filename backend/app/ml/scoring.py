@@ -8,8 +8,10 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Dict, Any, List, Optional, Tuple
 
+import numpy as np
 from app.ml.clip import compute_cosine_similarity
 
 logger = logging.getLogger("prapti-scoring")
@@ -89,33 +91,86 @@ def compute_time_score(dt1: datetime, dt2: datetime) -> float:
         return 0.50
 
 
+STOP_WORDS = {
+    "lost", "found", "my", "a", "an", "the", "in", "at", "near", "on", "of",
+    "some", "someone", "please", "help", "is", "it", "item", "i", "with",
+    "and", "for", "to", "by", "from", "around", "have", "has", "had"
+}
+
+
+def extract_content_words(text: Optional[str]) -> set:
+    if not text:
+        return set()
+    words = re.findall(r"[a-zA-Z0-9]+", text.lower())
+    return {w for w in words if w not in STOP_WORDS and len(w) > 1}
+
+
 def compute_text_score(
     desc1: Optional[str],
     desc2: Optional[str],
     text_emb1: Any = None,
     text_emb2: Any = None,
+    cat1: Optional[str] = None,
+    cat2: Optional[str] = None,
 ) -> float:
     """
-    Computes text semantic similarity using CLIP text embeddings when available,
-    falling back to Jaccard word-overlap if embeddings are missing.
+    Computes text semantic similarity combining zero-shot category validation,
+    substantive keyword matching, and lexical grounding.
+    Completely eliminates false high text scores between unrelated items (e.g., earbuds vs pen).
     """
-    # 1. Use CLIP text embeddings if both vectors are present
-    if text_emb1 is not None and text_emb2 is not None:
-        return compute_cosine_similarity(text_emb1, text_emb2)
-
-    # 2. Text string Jaccard fallback
     if not desc1 or not desc2:
         return 0.00
 
-    w1 = set(desc1.lower().split())
-    w2 = set(desc2.lower().split())
-    if not w1 or not w2:
-        return 0.00
+    # 1. Infer categories dynamically if missing
+    c1 = cat1
+    c2 = cat2
+    if not c1 and desc1:
+        from app.ml.clip import predict_category_from_text
+        c1 = predict_category_from_text(desc1)
+    if not c2 and desc2:
+        from app.ml.clip import predict_category_from_text
+        c2 = predict_category_from_text(desc2)
 
-    intersection = len(w1 & w2)
-    union = len(w1 | w2)
-    jaccard = intersection / max(union, 1)
-    return round(float(np.clip(jaccard * 1.5, 0.0, 1.0)), 2)
+    # 2. Hard category incompatibility check (e.g., earphones vs stationery)
+    if c1 and c2:
+        s1 = str(c1).strip().lower()
+        s2 = str(c2).strip().lower()
+        if s1 != s2:
+            return 0.02
+
+    # 3. Extract substantive content keywords (excluding stop/filler words)
+    kw1 = extract_content_words(desc1)
+    kw2 = extract_content_words(desc2)
+    overlap = kw1 & kw2
+
+    # Substring / stem matching (e.g. "earbud" in "earbuds", "keys" in "keychain")
+    has_stem_match = False
+    for w1 in kw1:
+        for w2 in kw2:
+            if len(w1) >= 3 and len(w2) >= 3 and (w1 in w2 or w2 in w1):
+                has_stem_match = True
+                break
+        if has_stem_match:
+            break
+
+    # 4. If same category or both categories matched:
+    if c1 and c2 and str(c1).strip().lower() == str(c2).strip().lower():
+        if overlap:
+            ratio = len(overlap) / max(min(len(kw1), len(kw2)), 1)
+            return round(min(1.00, 0.70 + 0.30 * ratio), 2)
+        elif has_stem_match:
+            return 0.80
+        else:
+            return 0.55
+
+    # 5. Fallback if categories are unknown:
+    if overlap:
+        ratio = len(overlap) / max(min(len(kw1), len(kw2)), 1)
+        return round(min(1.00, 0.50 + 0.50 * ratio), 2)
+    elif has_stem_match:
+        return 0.60
+
+    return 0.05
 
 
 def compute_visual_score(
