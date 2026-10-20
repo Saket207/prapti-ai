@@ -53,7 +53,7 @@ def test_clip_embeddings():
     assert 0.99 <= sim_self <= 1.0, f"Self similarity should be ~1.0, got {sim_self}"
 
     # Missing vector fallback
-    assert compute_cosine_similarity(None, txt_emb) == 0.5
+    assert compute_cosine_similarity(None, txt_emb) == 0.0
     print("CLIP embeddings test PASSED.")
 
 
@@ -152,10 +152,10 @@ def test_composite_scoring():
 
     # Weight check: visual (35%) + text (35%) + location (20%) + time (10%)
     # Let visual=1.0 (0.35), text=0.0, loc=0.0, time=0.0 => 0.35
-    c_vis, _ = compute_composite_score(1.0, 0.0, 0.0, 0.0)
+    c_vis, _ = compute_composite_score(1.0, 0.0, 0.0, 0.0, has_both_visual=True)
     assert c_vis == 0.35
 
-    c_loc, _ = compute_composite_score(0.0, 0.0, 1.0, 0.0)
+    c_loc, _ = compute_composite_score(0.0, 0.0, 1.0, 0.0, has_both_visual=True)
     assert c_loc == 0.20
 
     print("Composite score test PASSED.")

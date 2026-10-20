@@ -24,7 +24,7 @@ Prapti-AI (*Prapti* = Sanskrit for "getting back, obtaining") is an AI-powered l
 | **Admin Module** | Implemented & Verified | All 4 admin endpoints (`items`, `items/{id}/status`, `original/{id}`, `stats`) and `require_admin` guard implemented & verified. |
 | **Auth & Security** | Implemented & Verified | `backend/app/auth.py` verifying Supabase JWTs with HTTP 401 challenge and admin role enforcement (HTTP 403). |
 | **Campus Data** | Implemented & Verified | `shared/campus_locations.json` populated with 14 authentic DSCE campus locations and zones. |
-| **Notifications** | Pending Implementation | `notifications/notify.py`, `telegram_bot.py`, `email_sender.py` are skeleton files. |
+| **Notifications** | Implemented & Verified | `notifications/email_sender.py` & `notify.py` dispatching real-time Brevo transactional alerts with resilient fallback. |
 | **Frontend Web App** | Implemented & Verified | Next.js 16 + Tailwind CSS app with typed API client, report forms, AI match cards, secret verification modal, and admin analytics dashboard. |
 
 

@@ -18,6 +18,7 @@ from app.models import (
     HandoverConfirmRequest,
     HandoverConfirmResponse,
 )
+from notifications.notify import notify_user_by_id
 
 logger = logging.getLogger("prapti-claims")
 router = APIRouter()
@@ -259,6 +260,45 @@ async def verify_claim_answer(
             {"status": ItemStatus.MATCHED.value}
         ).in_("id", [claim_data["lost_item_id"], found_id]).execute()
 
+        # Dispatch notification events (as specified in docs/api-contract.md)
+        try:
+            found_res = (
+                supabase.table("items")
+                .select("reporter_id, category")
+                .eq("id", found_id)
+                .maybe_single()
+                .execute()
+            )
+            f_item = found_res.data if found_res else {}
+            item_cat = f_item.get("category") or "item"
+            finder_id = f_item.get("reporter_id")
+
+            # 1. Notify finder that their secret question was verified
+            if finder_id:
+                notify_user_by_id(
+                    "claim_received",
+                    finder_id,
+                    {"category": item_cat},
+                    supabase_client=supabase
+                )
+                # Handover ready notification for finder
+                notify_user_by_id(
+                    "handover_ready",
+                    finder_id,
+                    {"category": item_cat, "qr_token": qr_token},
+                    supabase_client=supabase
+                )
+
+            # 2. Notify claimant with QR handover pass
+            notify_user_by_id(
+                "handover_ready",
+                claim_data["claimant_id"],
+                {"category": item_cat, "qr_token": qr_token},
+                supabase_client=supabase
+            )
+        except Exception as n_err:
+            logger.warning(f"Notification dispatch failed during claim verify: {n_err}")
+
         return ClaimVerifyResponse(
             verified=True,
             qr_token=qr_token,
@@ -413,6 +453,36 @@ async def confirm_handover(
         supabase.table("items").update(
             {"status": ItemStatus.RETURNED.value}
         ).in_("id", [claim_data["lost_item_id"], found_id]).execute()
+
+        # Dispatch 'returned' event notification to both parties
+        try:
+            item_res = (
+                supabase.table("items")
+                .select("category")
+                .eq("id", found_id)
+                .maybe_single()
+                .execute()
+            )
+            item_cat = (item_res.data or {}).get("category") or "item"
+
+            # 1. Notify claimant
+            if claim_data.get("claimant_id"):
+                notify_user_by_id(
+                    "returned",
+                    claim_data["claimant_id"],
+                    {"category": item_cat},
+                    supabase_client=supabase
+                )
+            # 2. Notify finder
+            if found_item and found_item.get("reporter_id"):
+                notify_user_by_id(
+                    "returned",
+                    found_item["reporter_id"],
+                    {"category": item_cat},
+                    supabase_client=supabase
+                )
+        except Exception as n_err:
+            logger.warning(f"Notification dispatch failed during handover confirmation: {n_err}")
     except Exception as exc:
         logger.exception(f"Error finalizing handover in database: {exc}")
         raise HTTPException(

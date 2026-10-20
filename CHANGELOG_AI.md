@@ -280,6 +280,28 @@ All entries record approved modifications, rationale, tests run, and outcomes.
   - Static type checking and Turbopack production compilation passed for all 6 routes (`/`, `/_not-found`, `/admin`, `/found`, `/items`, `/lost`).
 - **Test Results**: All routes compiled with 0 TypeScript or lint errors.
 - **Outstanding Issues**:
-  - Notifications module (`notifications/notify.py`).
+  - Campus ground-truth dataset curation (`data/ground_truth.csv`).
+
+---
+
+## [2026-10-21] — Task 15: Event-Driven Email Notification Engine (Brevo API & SMTP Relay)
+- **Authorized by**: User approval ("ok do it all").
+- **Files Modified / Created**:
+  - `notifications/email_sender.py`: Implemented dual-channel email dispatcher with Brevo REST API v3 (`https://api.brevo.com/v3/smtp/email`), Brevo SMTP Relay (`smtp-relay.brevo.com:587`), and safe local console simulation fallback.
+  - `notifications/notify.py`: Implemented central notification engine for the 4 lifecycle events (`match_found`, `claim_received`, `handover_ready`, `returned`) with responsive campus HTML templates and `notify_user_by_id` profile lookup.
+  - `notifications/__init__.py`: Exported `notify`, `notify_user_by_id`, and `send_email`.
+  - `backend/app/config.py`: Added `BREVO_API_KEY` and `SENDER_EMAIL` configuration parameters; dynamically included root workspace directory in `sys.path`.
+  - `backend/app/routes/items.py`: Hooked `match_found` notifications when reporting found items (matching open lost reports) and lost items.
+  - `backend/app/routes/claims.py`: Hooked `claim_received` and `handover_ready` (with single-use QR pass) on secret verification; hooked `returned` on handover confirmation.
+  - `backend/tests/test_notifications.py`: Created test suite verifying all 4 contract events, error resilience, and dispatch logging.
+- **Reason**: Fulfill Section "Notification events" of `docs/api-contract.md` to automatically alert students when their items are found or claimed.
+- **Tests Executed**:
+  - `python backend/tests/test_notifications.py` (7 tests run, all PASSED).
+  - `python backend/tests/test_admin.py` (all tests PASSED).
+  - `python backend/tests/test_ml_and_matching.py` (all tests PASSED).
+  - `npm run build` in `frontend/` (compiled successfully with 0 errors).
+- **Test Results**: All automated tests and frontend build checks passed.
+- **Outstanding Issues**:
+  - Campus ground-truth dataset curation (`data/ground_truth.csv`, `data/seed_items.json`).
 
 

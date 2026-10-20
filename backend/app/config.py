@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -5,6 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Project root directory (two levels up from backend/app)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 ENV_FILE = BASE_DIR / ".env"
 
 
@@ -27,6 +31,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     PORT: int = 8000
+
+    # Notification & Email
+    BREVO_API_KEY: Optional[str] = None
+    SENDER_EMAIL: Optional[str] = None
 
 
 settings = Settings()

@@ -32,6 +32,7 @@ from app.ml.scoring import (
     compute_visual_score,
     compute_composite_score,
 )
+from notifications.notify import notify_user_by_id
 
 logger = logging.getLogger("prapti-items")
 router = APIRouter()
@@ -204,6 +205,62 @@ async def report_found_item(
         )
 
     blurred_url = build_blurred_public_url(supabase.supabase_url, blurred_path)
+
+    # Check open lost items and notify owners if a high-confidence match exists
+    try:
+        open_lost_res = (
+            supabase.table("items")
+            .select("id, reporter_id, category, description, location_id, event_time, image_embedding, text_embedding")
+            .eq("kind", "lost")
+            .eq("status", "lost")
+            .execute()
+        )
+        lost_items = open_lost_res.data if open_lost_res else []
+        for lost_it in lost_items:
+            cat_lost = lost_it.get("category")
+            if pred_category and cat_lost and pred_category != cat_lost:
+                continue
+
+            score_loc = compute_location_score(location_id, lost_it.get("location_id"))
+            score_time = compute_time_score(event_dt, lost_it.get("event_time"))
+            score_text = compute_text_score(
+                item_payload.get("text_embedding"),
+                lost_it.get("text_embedding"),
+                cat1=pred_category,
+                cat2=cat_lost,
+            )
+            score_visual = compute_visual_score(
+                image_embedding,
+                lost_it.get("image_embedding"),
+                item_payload.get("text_embedding"),
+                lost_it.get("text_embedding"),
+            )
+            has_both_vis = bool(image_embedding and lost_it.get("image_embedding"))
+            has_one_vis = bool(image_embedding or lost_it.get("image_embedding")) and not has_both_vis
+            composite_score, _ = compute_composite_score(
+                score_visual,
+                score_text,
+                score_loc,
+                score_time,
+                cat1=pred_category,
+                cat2=cat_lost,
+                has_both_visual=has_both_vis,
+                has_one_visual=has_one_vis,
+            )
+            if composite_score >= 0.65:
+                notify_user_by_id(
+                    "match_found",
+                    lost_it["reporter_id"],
+                    {
+                        "category": pred_category or "item",
+                        "score": composite_score,
+                        "location_id": location_id,
+                        "description": item_payload.get("description"),
+                    },
+                    supabase_client=supabase,
+                )
+    except Exception as n_err:
+        logger.warning(f"Notification search for found item failed non-critically: {n_err}")
 
     return ItemResponse(
         id=UUID(item_id),
@@ -436,6 +493,24 @@ async def report_lost_item(
     except Exception as exc:
         logger.warning(f"Notice: Candidate matching search non-critical failure: {exc}")
         matches = []
+
+    # Dispatch 'match_found' event if high-confidence match found
+    try:
+        if matches and matches[0].score >= 0.65:
+            top_m = matches[0]
+            notify_user_by_id(
+                "match_found",
+                user_id,
+                {
+                    "category": top_m.found_item.category or "item",
+                    "score": top_m.score,
+                    "location_id": top_m.found_item.location_id,
+                    "description": top_m.found_item.description,
+                },
+                supabase_client=supabase,
+            )
+    except Exception as n_err:
+        logger.warning(f"Notification dispatch failed in report_lost_item: {n_err}")
 
     return LostItemCreatedResponse(
         item=created_item,
