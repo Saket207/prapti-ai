@@ -58,55 +58,60 @@ Prapti-AI replaces chaotic chat groups with an automated, privacy-first campus r
 ## 2. System Architecture
 
 ```mermaid
-graph TD
-    subgraph ClientLayer ["Client Layer (Next.js 16 + Tailwind CSS)"]
-        A1["Student Portal (/lost, /found)"]
-        A2["Belongings Manager (/items)"]
-        A3["Admin Security Dashboard (/admin)"]
+flowchart TD
+    subgraph ClientLayer ["Client Layer: Next.js 16 + Tailwind CSS"]
+        A1["Student Portal: /lost, /found"]
+        A2["Belongings Manager: /items"]
+        A3["Admin Security Dashboard: /admin"]
     end
 
-    subgraph APILayer ["FastAPI Backend (Port 8000)"]
-        B1["Items Router (/items)"]
-        B2["Matches Router (/matches)"]
-        B3["Claims Router (/claims)"]
-        B4["Admin Router (/admin)"]
-        B5["Auth Guard & RBAC (JWT)"]
+    subgraph APILayer ["FastAPI Backend: Port 8000"]
+        B1["Items Router: /items"]
+        B2["Matches Router: /matches"]
+        B3["Claims Router: /claims"]
+        B4["Admin Router: /admin"]
+        B5["Auth Guard & RBAC: JWT"]
     end
 
     subgraph AIEngine ["Multimodal AI & Vision Pipeline"]
-        C1["OpenCV Privacy Blur (Faces & ID Strips)"]
-        C2["CLIP Embedder (512-dim Image & Text)"]
-        C3["Zero-Shot Tagging (Category & Color)"]
-        C4["4-Factor Scoring Engine + Category Gating"]
+        C1["OpenCV Privacy Blur: Faces & ID Strips"]
+        C2["CLIP Embedder: 512-dim Image & Text"]
+        C3["Zero-Shot Tagging: Category & Color"]
+        C4["4-Factor Scoring Engine & Category Gating"]
     end
 
     subgraph DataCloud ["Supabase Managed Cloud"]
-        D1[("PostgreSQL with pgvector (512-dim)")]
-        D2["Private Storage Bucket ('originals')"]
-        D3["Public Storage Bucket ('blurred')"]
-        D4["Row-Level Security (RLS) Engine"]
+        D1[("PostgreSQL with pgvector")]
+        D2["Private Storage Bucket: originals"]
+        D3["Public Storage Bucket: blurred"]
+        D4["Row-Level Security Engine"]
     end
 
     subgraph NotificationLayer ["Brevo Notification Service"]
-        E1["SMTP Relay (smtp-relay.brevo.com:587)"]
+        E1["SMTP Relay: smtp-relay.brevo.com"]
         E2["Official DSCE College HTML Template"]
     end
 
-    A1 -->|REST API Requests| B1
-    A2 -->|Query Matches & Claims| B2
+    A1 -->|Submit Reports| B1
+    A2 -->|Query Matches| B2
     A2 -->|Submit Secret Answers| B3
-    A3 -->|Manage Disputed Items & Hotspots| B4
-    B1 & B2 & B3 & B4 --> B5
+    A3 -->|Manage Audits & Overrides| B4
+    B1 --> B5
+    B2 --> B5
+    B3 --> B5
+    B4 --> B5
 
     B1 -->|Raw Image Upload| C1
     C1 -->|Blurred Photo| D3
     C1 -->|Raw Photo| D2
     B1 -->|Generate Embeddings| C2
     C2 --> C3
-    B1 & B2 -->|Score Candidates| C4
+    B1 -->|Score Candidates| C4
+    B2 -->|Score Candidates| C4
     C4 -->|Read Vectors & Compute Cosine| D1
 
-    B1 & B3 -->|Lifecycle Events (match_found, handover_ready)| E1
+    B1 -->|Notify Match Found| E1
+    B3 -->|Notify Handover Ready| E1
     E1 --> E2
 ```
 
